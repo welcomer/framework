@@ -1,0 +1,26 @@
+<configuration>
+    
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <file>log/stdout.log</file>
+        <encoder>
+            <pattern>[%highlight(%-5level) %X{akkaTimestamp}] ([%logger{36} | %X{akkaSource} | %X{sourceThread}] %n  %white(%msg) %n%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="akka" level="INFO" />
+    <!--     <appender-ref ref="STDOUT" />
+    </logger> -->
+    
+    <logger name="me.welcomer" level="DEBUG" />
+    <!--     <appender-ref ref="STDOUT" />
+    </logger> -->
+    
+    <logger name="me.welcomer.framework.eci.EciResolver" level="INFO" />
+    <logger name="me.welcomer.framework.eventgateway" level="INFO" />
+    <!-- <logger name="me.welcomer.framework.pico.PicoRulesetContainer" level="INFO" /> -->
+
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+
+</configuration>
