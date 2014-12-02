@@ -12,22 +12,22 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License. 
  */
-package me.welcomer.framework.pico.rulesets
+package me.welcomer.rulesets
+
+import scala.language.postfixOps
 
 import me.welcomer.framework.pico.EventedEvent
-import akka.pattern.ask
-import akka.util.Timeout
-import scala.language.postfixOps
-import scala.concurrent.duration._
-import reactivemongo.bson.BSONDocument
+import me.welcomer.framework.pico.PicoRuleset
 import me.welcomer.framework.pico.service.PicoServicesComponent
+import play.api.libs.json._
 
 class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extends PicoRuleset(picoServices) {
   import context._
 
-  subscribeToEventDomain("TEST")
+  subscribeToAllEvents
+  //  subscribeToEventDomain("TEST")
+  //  subscribeToEvents("foo", "bar")
 
-  subscribeToEvents("foo", "bar")
 
   // HACK test
   //  val event = EventedEvent("TEST", "RaiseEventedEvent", entityId = Option("testEci"))
