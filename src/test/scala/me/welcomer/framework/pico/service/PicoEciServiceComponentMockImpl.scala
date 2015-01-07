@@ -10,8 +10,8 @@ trait PicoEciServiceComponentMockImpl extends PicoEciServiceComponent { self: Ec
   override protected def _picoEciService(picoUUID: String): PicoEciService = new PicoEciServiceMockImpl()(picoUUID)
 
   private[this] class PicoEciServiceMockImpl(implicit val picoUUID: String) extends PicoEciService {
-    override def generate(description: Option[String] = None)(implicit ec: ExecutionContext): Future[ECI] = {
-      Future(ECI("the-generated-eci", "the-picoUUID", "description"))
+    override def generate(description: Option[String] = None)(implicit ec: ExecutionContext): Future[String] = {
+      Future("the-generated-eci")
     }
   }
 }

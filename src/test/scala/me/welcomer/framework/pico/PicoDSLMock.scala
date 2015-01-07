@@ -21,12 +21,12 @@ trait PicoRulesetDSLMock extends PicoRulesetDSL { this: PicoRuleset =>
   val responseWatcherRef: ActorRef
   val picoEventWatcherRef: ActorRef
 
-  protected def mockEventReply: PartialFunction[EventedEvent, Unit]
+  protected def mockEventReply: PartialFunction[EventedMessage, Unit]
 
-  protected def sendEventToTestRef(event: EventedEvent) = {
-    log.debug("Sending event to testRef: {}", event)
+  protected def sendEventToTestRef(evented: EventedMessage) = {
+    log.debug("Sending event to testRef: {}", evented)
 
-    responseWatcherRef ! event
+    responseWatcherRef ! evented
   }
 
   override def subscribeToEventedEvents(eventDomain: Option[String] = None, eventType: Option[String] = None, localOnly: Boolean = false): Unit = {
@@ -35,10 +35,10 @@ trait PicoRulesetDSLMock extends PicoRulesetDSL { this: PicoRuleset =>
     //    mockEventReply(event)
   }
 
-  final override def raiseRemoteEvent(event: EventedEvent): Unit = {
-    log.debug("Mock raiseRemoteEvent: {}", event)
+  final override def raiseRemoteEvent(evented: EventedMessage): Unit = {
+    log.debug("Mock raiseRemoteEvent: {}", evented)
 
-    mockEventReply(event)
+    mockEventReply(evented)
   }
 
   final override def raisePicoEvent(event: EventedEvent): Unit = {

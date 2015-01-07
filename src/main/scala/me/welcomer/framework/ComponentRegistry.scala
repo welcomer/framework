@@ -66,6 +66,14 @@ private[framework] trait ComponentRegistry
   with PicoSafeManagementServiceComponent
   with PicoLinkServiceComponent
   with MandrillRepositoryComponent {
+
+  def dbConnection: MongoConnection
+  def dbDriver: MongoDriver
+  def database: DB
+
+  def eciService: EciService
+  def eciResolverService: EciResolverService
+  def picoContainerService: PicoContainerService
 }
 
 private[framework] trait ComponentRegistryImpl

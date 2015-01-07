@@ -20,6 +20,7 @@ import me.welcomer.framework.models.{ ECI, Pico }
 import me.welcomer.framework.pico.{ EventedEvent, PicoRuleset }
 import me.welcomer.framework.pico.service.PicoServicesComponent
 import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
+import me.welcomer.framework.pico.PicoRulesetHelper
 import play.api.libs.json._
 import scala.util.control.NonFatal
 
@@ -31,10 +32,7 @@ class VendorRuleset(picoServices: PicoServicesComponent#PicoServices) extends Pi
   subscribeToEventDomain(EventDomain.VENDOR)
   subscribeToEventDomain(EventDomain.USER)
 
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  var transactions = HashMap[String, Option[String]]() // TODO: Get rid of Option, make it just String?
-
-  def selectWhen = {
+  override def selectWhen = {
     case event @ EventedEvent(EventDomain.VENDOR, eventType, _, _, _) => {
       logEventInfo
       eventType match {
@@ -59,7 +57,7 @@ class VendorRuleset(picoServices: PicoServicesComponent#PicoServices) extends Pi
   }
 }
 
-trait VendorRulesetHelper extends AnyRef { this: VendorRuleset =>
+trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
   import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
   import me.welcomer.framework.utils.ImplicitConversions._
 
@@ -79,12 +77,12 @@ trait VendorRulesetHelper extends AnyRef { this: VendorRuleset =>
       case Some(mapping) => log.info("ECI found for user, nothing to do: {} ({})", mapping.userEci, event)
       case None => {
         mapNewUserPico(o.channelDetails) onComplete {
-          case Success((userPico, userEci, vendorEci, storeResult)) => {
-            log.info("User pico created & mapped: {}->{} ({})", o.channelDetails, userEci.eci, storeResult);
+          case Success((userEci, vendorEci, storeResult)) => {
+            log.info("User pico created & mapped: {}->{} ({})", o.channelDetails, userEci, storeResult);
 
             val vendorData = Json.obj(
-              "vendorId" -> vendorEci.eci, // Do we actually have/need a 'vendorId' anymore?
-              "vendorEci" -> vendorEci.eci)
+              "vendorId" -> vendorEci, // Do we actually have/need a 'vendorId' anymore?
+              "vendorEci" -> vendorEci)
 
             val userData = Json.obj() // TODO: Will we ever have any data to store here? Handle certain known channels maybe? (email, mobile, etc)
 
@@ -92,7 +90,7 @@ trait VendorRulesetHelper extends AnyRef { this: VendorRuleset =>
               EventDomain.USER,
               EventType.CREATED,
               Created(o.transactionId, vendorData, userData),
-              userEci.eci)
+              userEci)
           }
           case Failure(e) => log.error(e, "Error creating/mapping new User pico: {} ({}, {})", e.getMessage(), o, event);
         }
@@ -316,17 +314,17 @@ trait VendorRulesetHelper extends AnyRef { this: VendorRuleset =>
   // Helpers
   // --------
 
-  protected def mapNewUserPico(channelDetails: ChannelDetails)(implicit ec: ExecutionContext): Future[(Pico, ECI, ECI, JsObject)] = {
+  protected def mapNewUserPico(channelDetails: ChannelDetails)(implicit ec: ExecutionContext): Future[(String, String, JsObject)] = {
     def channelType = channelDetails.channelType
     def channelId = channelDetails.channelId
 
     lazy val eciDescription = s"[UserPico] $channelType->$channelId"
 
     for {
-      (userPico, userEci) <- _picoServices.picoManagement.createNewPico(USER_RULESETS)
+      userEci <- _picoServices.picoManagement.createNewPico(USER_RULESETS)
       vendorEci <- _picoServices.eci.generate(Some(eciDescription))
-      storeResult <- storePicoMapping(UserPicoMapping(userEci.eci, vendorEci.eci, Set(channelDetails)))
-    } yield { (userPico, userEci, vendorEci, storeResult) }
+      storeResult <- storePicoMapping(UserPicoMapping(userEci, vendorEci, Set(channelDetails)))
+    } yield { (userEci, vendorEci, storeResult) }
   }
 
   // TODO: This is likely a fairly common pattern.. can we extract it?
@@ -421,38 +419,5 @@ trait VendorRulesetHelper extends AnyRef { this: VendorRuleset =>
     def failure = failureEvent map { _ map { raiseRemoteEvent(_) } }
 
     forChannel(channelDetails, success, failure)
-  }
-
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  def mapReplyToEci(transactionId: String, replyTo: Option[String] = None) /*(implicit event: EventedEvent)*/ = {
-    //    val storeReplyTo = replyTo match {
-    //      case replyTo @ Some(_) => replyTo
-    //      case None => event.entityId // This shouldn't be entityId, it should somehow map to the ECI allowed to use this entityId, as we want to know where it came from..
-    //    }
-    transactions += (transactionId -> replyTo)
-  }
-
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  def retrieveReplyToEci(transactionId: String, popEntry: Boolean): Option[String] = {
-    transactions.get(transactionId) flatMap { replyToOpt =>
-      if (popEntry) transactions -= transactionId // TODO: Is closing over this a bad idea? Maybe send a message so we can update it syncronously? (probably pull it up into PicoRuleset)
-
-      replyToOpt
-    }
-  }
-
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  def replyToTransaction(eventDomain: String, eventType: String, attributes: JsObject)(implicit event: EventedEvent, transactionIdOpt: Option[String]) = {
-    transactionIdOpt map { implicit transactionId =>
-      retrieveReplyToEci(transactionId, true) match {
-        //      transactions.get(transactionId) map { replyToOpt =>
-        //        transactions = transactions -= transactionId // TODO: Is closing over this a bad idea? Maybe send a message so we can update it syncronously? (probably pull it up into PicoRuleset)
-
-        //        replyToOpt match {
-        case Some(replyTo) => raiseRemoteEvent(eventDomain, eventType, attributes, replyTo)
-        case None => raisePicoEvent(eventDomain, eventType, attributes)
-      }
-      //      } getOrElse { log.error("'{}' not found in map, don't know who to reply to ({})", TRANSACTION_ID, event) }
-    } getOrElse { log.error("No '{}' to lookup so we can't map it to '{}' ({})", TRANSACTION_ID, REPLY_TO, event) }
   }
 }

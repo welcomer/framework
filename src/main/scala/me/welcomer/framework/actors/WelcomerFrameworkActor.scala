@@ -14,9 +14,11 @@
  */
 package me.welcomer.framework.actors
 
-import akka.actor.ActorLogging
-import akka.actor.Actor
 import scala.concurrent.ExecutionContext
+
+import akka.actor.Actor
+import akka.actor.ActorLogging
+import akka.actor.ActorRef
 
 private[framework] abstract class WelcomerFrameworkActor extends Actor with ActorLogging {
   import context._
@@ -41,7 +43,13 @@ private[framework] abstract class WelcomerFrameworkActor extends Actor with Acto
     insidePostStop
   }
 
-  def isParent = (sender == parent)
-  def isSelf = (sender == self)
-  def isChild = children.exists(_ == sender)
+  def isParent(ref: ActorRef) = (ref == parent)
+  def isSelf(ref: ActorRef) = (ref == self)
+  def isChild(ref: ActorRef) = children.exists(_ == ref)
+  def isSibling(ref: ActorRef) = (ref.path.parent == self.path.parent)
+
+  def fromParent = isParent(sender)
+  def fromSelf = isSelf(sender)
+  def fromChild = isChild(sender)
+  def fromSibling = isSibling(sender)
 }

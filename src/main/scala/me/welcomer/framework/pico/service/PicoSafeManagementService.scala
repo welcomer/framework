@@ -31,8 +31,9 @@ trait PicoSafeManagementServiceComponent {
      * Create a new pico.
      *
      * @param rulesets Set of rulesets to be installed on this pico.
+     * @return The future ECI of the created pico
      */
-    def createNewPico(rulesets: Set[String] = Set())(implicit ec: ExecutionContext): Future[(Pico, ECI)]
+    def createNewPico(rulesets: Set[String] = Set())(implicit ec: ExecutionContext): Future[String]
   }
 }
 
@@ -41,8 +42,10 @@ trait PicoSafeManagementServiceComponentImpl extends PicoSafeManagementServiceCo
   override protected def _picoSafeManagementService: PicoSafeManagementService = new PicoSafeManagementServiceImpl()
 
   private[this] class PicoSafeManagementServiceImpl() extends PicoSafeManagementService {
-    override def createNewPico(rulesets: Set[String] = Set())(implicit ec: ExecutionContext): Future[(Pico, ECI)] = {
-      _picoManagementService.createNewPico(rulesets)
+    override def createNewPico(rulesets: Set[String] = Set())(implicit ec: ExecutionContext): Future[String] = {
+      _picoManagementService.createNewPico(rulesets) map {
+        case (_, ECI(_, eci, _, description)) => eci
+      }
     }
   }
 }

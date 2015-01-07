@@ -15,11 +15,15 @@
 package me.welcomer.rulesets
 
 import scala.language.postfixOps
-
 import me.welcomer.framework.pico.EventedEvent
 import me.welcomer.framework.pico.PicoRuleset
 import me.welcomer.framework.pico.service.PicoServicesComponent
 import play.api.libs.json._
+import me.welcomer.framework.pico.EventedSuccess
+import me.welcomer.framework.pico.EventedFailure
+import me.welcomer.framework.pico.EventedResult
+import me.welcomer.framework.pico.EventedFunction
+import me.welcomer.framework.pico.BasicError
 
 class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extends PicoRuleset(picoServices) {
   import context._
@@ -27,7 +31,6 @@ class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extend
   subscribeToAllEvents
   //  subscribeToEventDomain("TEST")
   //  subscribeToEvents("foo", "bar")
-
 
   // HACK test
   //  val event = EventedEvent("TEST", "RaiseEventedEvent", entityId = Option("testEci"))
@@ -38,6 +41,26 @@ class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extend
   val picoEvent = EventedEvent("PICO", "TestLocalEvent")
   raisePicoEvent(picoEvent)
 
+  override def externalFunctionSharing = true
+
+  use module "me.welcomer.rulesets.HelloWorldRuleset" alias "foo" at "testEci" withConfiguration Json.obj("foo" -> "bar") save
+
+  //
+  //  use
+  //    .module("com.foo")
+  //    .alias("foo")
+  //    .at("testEci")
+  //    .withConfiguration(Json.obj("foo" -> "bar"))
+  //    //    .timeout(t)
+  //    .save
+  //
+  //  module("foo").call("someFunc", Json.obj("arg1" -> "foo")) map {
+  //    case EventedSuccess(s) => log.info("{}", s)
+  //    case f: EventedFailure => log.error("{}", f)
+  //  }
+  //
+  //  "foo".call("someFunc", Json.obj("arg1" -> "foo"))
+
   //  implicit val timeout = Timeout(5 seconds)
   //
   //  val testAsk = EventedEvent("foo", "testAsk", attributes = BSONDocument("replyTo" -> self.path.toString()))
@@ -45,11 +68,22 @@ class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extend
   //  testAskResult map { response =>
   //    log.error("ASKRESPONSE: {}", response)
   //  }
+  override def provideFunction = {
+    case EventedFunction(_, "fail", _, _) => EventedFailure(BasicError("This is a function fail result!"))
+    case _ => EventedSuccess("This is a function success result!")
+  }
 
-  def selectWhen = {
+  override def selectWhen = {
     case EventedEvent("TEST", "HELLO", _, _, _) => log.info("TEST:HELLO EventedEvent Received")
     case event @ EventedEvent("TEST", "RaiseEventedEvent", _, _, _) => log.info("[TEST:RaiseEventedEvent] {}", event)
     case event @ EventedEvent("PICO", _, _, _, _) => log.info("PICO EventedEvent Received ({})", event)
+    case event @ EventedEvent("TEST", "Function", _, _, _) => {
+      log.info("[TEST:Function] {}", event)
+
+      "foo".call("someFunc", Json.obj("arg1" -> "foo")) onComplete {
+        case default => log.info("{}", default)
+      }
+    }
     //    case event @ EventedEvent("FUNCTION", "RESOLVER", _, attributes, _) => {
     //
     //    }

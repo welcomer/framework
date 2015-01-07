@@ -15,13 +15,9 @@
 package me.welcomer.link.mandrill
 
 protected object MandrillEndpoint {
-  val _HOST = "mandrillapp.com"
-  val _PORT = 443
-  val _SSL = true
-
-  val _PREFIX = "/api/1.0"
+  val BASE_URL = "https://mandrillapp.com/api/1.0"
 
   object Messages {
-    val SEND = _PREFIX + "/messages/send.json"
+    val SEND = BASE_URL + "/messages/send.json"
   }
 }

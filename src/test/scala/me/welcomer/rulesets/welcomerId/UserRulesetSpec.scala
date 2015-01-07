@@ -26,12 +26,13 @@ import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import me.welcomer.rulesets.PdsResponseMock
 import me.welcomer.rulesets.PdsTestHelpers
+import me.welcomer.framework.pico.EventedMessage
 
 abstract class UserRulesetMock extends UserRuleset(null) with PicoRulesetDSLMock with PdsResponseMock {
   import me.welcomer.rulesets.welcomerId.UserRulesetSchema._
   import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
 
-  protected def mockEventReply: PartialFunction[EventedEvent, Unit] = {
+  protected def mockEventReply: PartialFunction[EventedMessage, Unit] = {
     case event @ EventedEvent("PDS", "RetrieveAllItems", _, attributes, _) => pdsRetrieveAllItemsMock(event)
     case event @ EventedEvent(_, _, _, _, None) => raisePicoEventMock(event)
     case event => {

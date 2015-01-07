@@ -24,16 +24,16 @@ import me.welcomer.framework.Settings
 import me.welcomer.framework.eci.EciResolver
 import me.welcomer.framework.utils.DBUtils
 import akka.actor.ActorRef
-import me.welcomer.framework.eventgateway.EventGateway
+import me.welcomer.framework.eventedgateway.EventedGateway
 import me.welcomer.framework.picocontainer.PicoContainer
-import me.welcomer.framework.eventgateway.ExternalEventGateway
+import me.welcomer.framework.eventedgateway.ExternalEventedGateway
 
 private[framework] object WelcomerFrameworkOverlord {
   case object Shutdown
 
   case class ToEciResolver(msg: Any)
   case class ToPicoContainer(msg: Any)
-  case class ToEventGateway(msg: Any)
+  case class ToEventedGateway(msg: Any)
 
   /**
    * Create Props for an actor of this type.
@@ -51,7 +51,7 @@ private[framework] class WelcomerFrameworkOverlord() extends Actor with ActorLog
 
   private var eciResolver: ActorRef = _
   private var picoContainer: ActorRef = _
-  private var eventGateway: ActorRef = _
+  private var eventedGateway: ActorRef = _
   private var externalEventGateway: ActorRef = _
 
   override def preStart(): Unit = {
@@ -73,18 +73,19 @@ private[framework] class WelcomerFrameworkOverlord() extends Actor with ActorLog
         componentRegistry.picoContainerService),
       "pico")
 
-    log.info("Starting EventGateway..")
-    eventGateway = context.actorOf(
-      EventGateway.props(
-        eciResolver,
-        picoContainer),
+    log.info("Starting EventedGateway..")
+    eventedGateway = context.actorOf(
+      EventedGateway.props(
+        componentRegistry.settings,
+        eciResolver.path,
+        picoContainer.path),
       "event")
 
-    log.info("Starting ExternalEventGateway..")
+    log.info("Starting ExternalEventedGateway..")
     externalEventGateway = context.actorOf(
-      ExternalEventGateway.props(
+      ExternalEventedGateway.props(
         componentRegistry.settings,
-        eventGateway.path),
+        eventedGateway.path),
       "external")
 
     log.info("Overlord Initialisation complete.")
@@ -94,7 +95,7 @@ private[framework] class WelcomerFrameworkOverlord() extends Actor with ActorLog
     case Shutdown => self ! PoisonPill //context.stop(self)
     case ToEciResolver(message) => eciResolver.forward(message)
     case ToPicoContainer(message) => picoContainer.forward(message)
-    case ToEventGateway(message) => eventGateway.forward(message)
+    case ToEventedGateway(message) => eventedGateway.forward(message)
   }
 
   override def postStop(): Unit = {

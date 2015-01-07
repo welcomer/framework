@@ -16,6 +16,7 @@ package me.welcomer.framework
 
 import com.typesafe.config.ConfigFactory
 import com.typesafe.config.Config
+import scala.concurrent.duration._
 
 private[framework] object Settings {
   def apply() = {
@@ -31,7 +32,7 @@ private[framework] object Settings {
   }
 }
 
-private[framework] class Settings(val configOption: Option[Config] = scala.None) {
+private[framework] class Settings(configOption: Option[Config] = None) {
 
   val config: Config = configOption getOrElse { ConfigFactory.load() }
 
@@ -50,6 +51,16 @@ private[framework] class Settings(val configOption: Option[Config] = scala.None)
         val ecis: String = config.getString("db.welcomerFramework.collections.ecis")
       }
     }
+  }
+
+  //  object EventedGateway {
+  //
+  //  }
+
+  object EventedEntityResolver {
+    val timeout: FiniteDuration = FiniteDuration(config.getLong("eventedEntityResolver.timeout"), MILLISECONDS)
+    val retries: Int = config.getInt("eventedEntityResolver.retries")
+    val eventTraceLogDepth: Int = config.getInt("eventedEntityResolver.eventTraceLogDepth")
   }
 
   object ExternalEventGateway {

@@ -59,7 +59,7 @@ class UserRuleset(picoServices: PicoServicesComponent#PicoServices) extends Pico
   // TODO: If so, probably use it directly for now (will have to pass on sender for local pico events)
 
   // TODO: Refactor this to make use of handleEvent DSL
-  def selectWhen = {
+  override def selectWhen = {
     case event @ EventedEvent(EventDomain.USER, eventType, timestamp, attributes, entityId) => eventType match {
       case EventType.CREATED => {
         log.info("[{}::{}] {}", event.eventDomain, event.eventType, event)

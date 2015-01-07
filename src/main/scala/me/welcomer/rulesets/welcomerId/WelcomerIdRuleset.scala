@@ -23,7 +23,7 @@ class WelcomerIdRuleset(picoServices: PicoServicesComponent#PicoServices) extend
 
   subscribeToEvents("TEST", "HELLO")
 
-  def selectWhen = {
+  override def selectWhen = {
     case EventedEvent("TEST", "HELLO", _, _, _) => log.info("TEST:HELLO EventedEvent Received")
   }
 

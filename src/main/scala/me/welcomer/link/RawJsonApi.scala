@@ -1,34 +1,26 @@
 package me.welcomer.link
 
 import scala.concurrent.Future
-import akka.actor.ActorSystem
-import akka.util.Timeout
-import play.api.libs.json._
-import spray.client.pipelining._
-import spray.http._
-import spray.httpx.PlayJsonSupport
 import scala.util.Try
 
-class RawJsonApi(implicit val system: ActorSystem, val timeout: Timeout) extends PlayJsonSupport {
-  import system.dispatcher
+import akka.actor.ActorSystem
+import akka.util.Timeout
 
-  protected val pipeline: HttpRequest => Future[(HttpResponse, Try[JsValue])] = (
-    sendReceive
-    ~> parseResponseJson)
+import play.api.libs.json._
 
-  protected def parseResponseJson(r: HttpResponse): (HttpResponse, Try[JsValue]) = {
-    val rJson = Try(Json.parse(r.entity.asString))
-    (r, rJson)
-  }
+import spray.client.pipelining._
+import spray.http._
 
-  def get(url: String): Future[(HttpResponse, Try[JsValue])] = pipeline { Get(url) }
+class RawJsonApi(implicit val system: ActorSystem, val timeout: Timeout) extends ApiService {
 
-  def post(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipeline { Post(url, json) }
+  def get(url: String): Future[(HttpResponse, Try[JsValue])] = pipelineAsJson { Get(url) }
 
-  def put(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipeline { Put(url, json) }
+  def post(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipelineAsJson { Post(url, json) }
 
-  def patch(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipeline { Patch(url, json) }
+  def put(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipelineAsJson { Put(url, json) }
 
-  def delete(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipeline { Delete(url, json) }
+  def patch(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipelineAsJson { Patch(url, json) }
+
+  def delete(url: String, json: Option[JsValue] = None): Future[(HttpResponse, Try[JsValue])] = pipelineAsJson { Delete(url, json) }
 
 }

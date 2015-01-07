@@ -12,8 +12,8 @@ trait PicoSafeManagementServiceComponentMockImpl extends PicoSafeManagementServi
   override protected def _picoSafeManagementService: PicoSafeManagementService = new PicoSafeManagementServiceMockImpl()
 
   class PicoSafeManagementServiceMockImpl() extends PicoSafeManagementService {
-    override def createNewPico(rulesets: Set[String] = Set())(implicit ec: ExecutionContext): Future[(Pico, ECI)] = {
-      Future((Pico(rulesets), ECI("the-new-eci", "the-picoUUID", "description")))
+    override def createNewPico(rulesets: Set[String] = Set())(implicit ec: ExecutionContext): Future[String] = {
+      Future("the-new-eci")
     }
   }
 }

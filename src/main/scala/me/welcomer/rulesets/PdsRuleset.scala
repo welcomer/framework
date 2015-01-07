@@ -111,7 +111,7 @@ class PdsRuleset(picoServices: PicoServicesComponent#PicoServices) extends PicoR
 
   implicit def pdsService = picoServices.pds
 
-  def selectWhen = {
+  override def selectWhen = {
     case event @ EventedEvent(Event.EVENT_DOMAIN, eventType, _, attributes, _) => PdsEventType(eventType) match {
       case PdsRuleset.StoreItem => storeItem(attributes)
       case PdsRuleset.StoreAllItems => storeAllItems(attributes)

@@ -27,7 +27,7 @@ trait PicoEciServiceComponent { self: EciServiceComponent =>
   trait PicoEciService {
     implicit val picoUUID: String
 
-    def generate(description: Option[String] = None)(implicit ec: ExecutionContext): Future[ECI]
+    def generate(description: Option[String] = None)(implicit ec: ExecutionContext): Future[String]
   }
 }
 
@@ -35,8 +35,8 @@ trait PicoEciServiceComponentImpl extends PicoEciServiceComponent { self: EciSer
   override protected def _picoEciService(picoUUID: String): PicoEciService = new PicoEciServiceImpl()(picoUUID)
 
   private[this] class PicoEciServiceImpl(implicit val picoUUID: String) extends PicoEciService {
-    override def generate(description: Option[String] = None)(implicit ec: ExecutionContext): Future[ECI] = {
-      _eciService.generate(picoUUID, description)
+    override def generate(description: Option[String] = None)(implicit ec: ExecutionContext): Future[String] = {
+      _eciService.generate(picoUUID, description) map { _.eci }
     }
   }
 }

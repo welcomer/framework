@@ -18,7 +18,6 @@ import scala.concurrent.ExecutionContext
 import scala.util.Failure
 import scala.util.Success
 import scala.util.Try
-
 import akka.actor.Actor
 import akka.actor.ActorLogging
 import akka.actor.ActorRef
@@ -30,6 +29,8 @@ import me.welcomer.rulesets.PdsRuleset
 import me.welcomer.rulesets.PdsRulesetSchema
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
+import scala.collection.mutable.HashMap
+import scala.concurrent.Future
 
 trait PicoDSL
 
@@ -61,7 +62,7 @@ trait PicoRulesetContainerDSL extends AnyRef { self: PicoRulesetContainer =>
         case Success(ruleset) => {
           context.actorOf(
             PicoRuleset.props(ruleset, _picoServices),
-            name)
+            ruleset.getCanonicalName())
         }
         case Failure(e) => {
           e match {
@@ -87,8 +88,10 @@ trait PicoRulesetDSL extends AnyRef
   with PicoEventsDSL
   with PicoEventHandlingDSL
   with PicoPdsDSL
+  with PicoModuleDSL
   with CreatePicoDSL { this: PicoRuleset =>
   override def rulesetContainer: ActorRef = context.parent
+  //  def loadedModules: Map[String, EventedModule] = 
 }
 
 trait PicoRuleDSL extends AnyRef
@@ -119,11 +122,21 @@ trait PicoEventsDSL extends AnyRef
 }
 
 trait PicoRaiseRemoteEventDSL { this: Actor with ActorLogging =>
+  import akka.pattern.ask
+  import akka.util.Timeout
+  import context.dispatcher
+
   def rulesetContainer: ActorRef
 
-  def raiseRemoteEvent(event: EventedEvent): Unit = {
-    log.debug("[raiseRemoteEvent] {}", event)
-    rulesetContainer ! PicoRulesetContainer.RaiseRemoteEvent(event)
+  def raiseRemoteEvent(evented: EventedMessage): Unit = {
+    log.debug("[raiseRemoteEvent] {}", evented)
+    rulesetContainer ! PicoRulesetContainer.RaiseRemoteEvented(evented)
+  }
+
+  def raiseRemoteEventWithReplyTo(evented: EventedMessage)(implicit timeout: Timeout): Future[EventedResult[_]] = {
+    log.debug("[raiseRemoteEventWithReplyTo] {}", evented)
+
+    (rulesetContainer ? PicoRulesetContainer.RaiseRemoteEventedWithReplyTo(evented)).mapTo[EventedResult[_]]
   }
 
   def raiseRemoteEvent(eventDomain: String, eventType: String, attributes: JsObject, entityId: String): Unit = {
@@ -143,6 +156,74 @@ trait PicoRaisePicoEventDSL { this: Actor with ActorLogging =>
 
   def raisePicoEvent(eventDomain: String, eventType: String, attributes: JsObject): Unit = {
     raisePicoEvent(EventedEvent(eventDomain, eventType, attributes = attributes, entityId = None))
+  }
+}
+
+trait PicoModuleDSL extends AnyRef
+  with PicoRaiseRemoteEventDSL
+  with PicoRaisePicoEventDSL { this: Actor with ActorLogging =>
+
+  import scala.concurrent.duration.FiniteDuration
+  import scala.language.implicitConversions
+  import me.welcomer.framework.pico.EventedModule
+
+  private[this] var loadedModules: HashMap[String, EventedModule] = HashMap()
+
+  def use: UseModule = new UseModule {}
+
+  def module(alias: String) = new ModuleCallDSL(alias: String)
+
+  implicit def string2ModuleCallDSL(s: String): ModuleCallDSL = module(s)
+
+  protected trait UseModule {
+    def module(id: String) = new FluentModuleConfiguration(EventedModule(id), None)
+    def module(m: EventedModule) = new FluentModuleConfiguration(m, None)
+  }
+
+  protected class FluentModuleConfiguration(module: EventedModule, moduleAlias: Option[String]) {
+    def withAlias(a: String) = this.copy(moduleAlias = Some(a))
+    def alias = withAlias _
+
+    def atEci(eci: String) = this.copy(module = module.copy(eci = Some(eci)))
+    def at = atEci _
+
+    def configure(c: JsObject) = this.copy(module = module.copy(config = c))
+    def withConfiguration = configure _
+
+    def timeout(t: FiniteDuration) = this.copy(module = module.copy(timeout = t))
+
+    def get: (EventedModule, Option[String]) = (module, moduleAlias)
+    def getModule: EventedModule = module
+    def getAlias: Option[String] = moduleAlias
+
+    def save(): Unit = moduleAlias match {
+      case Some(a) => loadedModules += (a -> module)
+      case None => loadedModules += (module.id -> module)
+    }
+    def andSave = save _
+
+    private def copy(module: EventedModule = module, moduleAlias: Option[String] = moduleAlias) = new FluentModuleConfiguration(module, moduleAlias)
+  }
+
+  protected class ModuleCallDSL(moduleAlias: String) {
+    import akka.pattern.ask
+    import context.dispatcher
+
+    def call(name: String, args: JsObject = Json.obj()): Future[EventedResult[_]] = {
+      val module = loadedModules.get(moduleAlias)
+
+      module match {
+        case Some(m) => {
+          val func = EventedFunction(m, name, args)
+
+          m.eci match {
+            case Some(eci) => raiseRemoteEventWithReplyTo(func)(m.timeout)
+            case None => log.error("TODO: Implement local module call"); ??? //raiseLocalEvent(func)
+          }
+        }
+        case None => Future(EventedFailure(UnknownModule(moduleAlias)))
+      }
+    }
   }
 }
 
@@ -185,6 +266,7 @@ trait PicoLoggingDSL { this: PicoRuleset =>
   }
 }
 
+// TODO: Remove this? Not needed anymore since we have PicoServices
 trait CreatePicoDSL { this: Actor with ActorLogging =>
   private val picoContainerPath = "/user/overlord/pico" // TODO: Load this from settings/something?
 

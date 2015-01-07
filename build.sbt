@@ -1,12 +1,14 @@
 name := """welcomer-framework"""
 
-version := "0.1.1"
+version := "0.1.2"
 
 scalaVersion := "2.10.4"
 
 scalacOptions := Seq("-feature", "-unchecked", "-deprecation", "-encoding", "utf8")
 
-fork in (Test) := false
+//fork in (Test) := false
+
+//parallelExecution in Test := false
 
 EclipseKeys.withSource := true
 
@@ -30,11 +32,15 @@ libraryDependencies ++= Seq(
   "ch.qos.logback"      %   "logback-classic"     % "1.1.2",
   "com.casualmiracles"  %%  "treelog"             % "1.2.2",
   "org.scalaz"          %%  "scalaz-core"         % "7.0.6",
-  //"org.scalaz"          %% "scalaz-core"    % "7.1.0",
-  //"kamon"               %%  "kamon-spray"   % "0.3.5",
+  //"org.scalaz"          %% "scalaz-core"          % "7.1.0",
+  //"kamon"               %%  "kamon-spray"         % "0.3.5",
   "org.apache.commons"  %   "commons-lang3"       % "3.3.2",
-  "org.scalatest"       %% "scalatest"      % "2.1.6" % "test" // Included by scalamock
+  "org.scalatest"       %%  "scalatest"           % "2.1.6" % "test", // Included by scalamock
   //"org.scalamock"       %% "scalamock-scalatest-support" % "3.1.RC1" % "test", // 3.0.1
+  // For Xero: OAuth 1.0a / Private Key
+  "oauth.signpost"      %   "signpost-core"       % "1.2.1.2",
+  "org.bouncycastle"    %   "bcprov-jdk15on"      % "1.51",
+  "org.bouncycastle"    %   "bcpkix-jdk15on"      % "1.51"
 )
 
 resolvers ++= Seq(

@@ -48,13 +48,13 @@ private[framework] class PicoOverlord(
   import context._
   import PicoOverlord._
 
-  private def picoRulesetContainer(event: EventedEvent) = child(RULESET_CONTAINER) match {
+  private def picoRulesetContainer(evented: EventedMessage) = child(RULESET_CONTAINER) match {
     case Some(ref) => {
-      log.debug("Sending event through to ruleset container ({})", event)
+      log.debug("Sending event through to ruleset container ({})", evented)
 
-      ref ! event
+      ref ! evented
     }
-    case None => log.error("PicoRulesetContainer doesn't exist for some reason.. Event not sent ({})", event)
+    case None => log.error("PicoRulesetContainer doesn't exist for some reason.. Evented* not sent ({})", evented)
     // TODO: Also start the RulesetContainer in None if it doesn't exist?
   }
 
@@ -68,8 +68,8 @@ private[framework] class PicoOverlord(
   }
 
   def initialising: Receive = {
-    case event: EventedEvent if isParent => {
-      log.debug("Stashing event till initialised: ({})", event)
+    case evented: EventedMessage if fromParent => {
+      log.debug("Stashing event till initialised: ({})", evented)
       stash()
     }
     case PicoRulesetContainer.Initialised => {
@@ -81,7 +81,7 @@ private[framework] class PicoOverlord(
   }
 
   def running: Receive = {
-    case event: EventedEvent if isParent => picoRulesetContainer(event)
+    case evented: EventedMessage if (fromParent | fromSelf) => picoRulesetContainer(evented)
   }
 
   def receive = initialising

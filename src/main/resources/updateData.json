@@ -1,0 +1,13 @@
+{
+  "_domain" : "XeroDemo",
+  "_type" : "updateData",
+  "_attr" : {
+                "email" : "foo@bar.com",
+                "tfn" : 12345678,
+                "others" : [
+                            "Foo",
+                            "Bar",
+                            "Baz"
+                ]
+            }
+}

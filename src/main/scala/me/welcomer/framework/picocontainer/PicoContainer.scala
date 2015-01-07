@@ -17,7 +17,6 @@ package me.welcomer.framework.picocontainer
 import scala.concurrent.ExecutionContext
 import scala.util.Failure
 import scala.util.Success
-
 import akka.actor.Props
 import me.welcomer.framework.Settings
 import me.welcomer.framework.actors.WelcomerFrameworkActor
@@ -25,6 +24,7 @@ import me.welcomer.framework.pico.EventedEvent
 import me.welcomer.framework.picocontainer.service.PicoContainerServiceComponent
 import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
+import me.welcomer.framework.pico.EventedMessage
 
 // TODO: Setup event channels for various 'domains'. (eg. system for PicoCreated, etc?)
 
@@ -55,7 +55,7 @@ private[framework] object PicoContainer {
   //  case class StopPicoSuccess(idToken: String, picoId: String)
   //  case class StopPicoFailure(idToken: String, picoId: String, reason: String)
 
-  case class PublishEventedEvent(picoUUID: String, event: EventedEvent)
+  case class RouteEventedToPico(picoUUID: String, evented: EventedMessage)
   // TODO: Implement a 'PublishEventedEvent' type message (if sender == ECIResolverActor { eventedEventBus.publish } else { send to ECIResolver to resolve ECI->PicoUUID }
 
   /**
@@ -89,9 +89,9 @@ private[framework] class PicoContainer(
     case createPico: CreatePico => handleCreatePico(createPico)
     case startPico: StartPico => handleStartPico(startPico)
     case stopPico: StopPico => handleStopPico(stopPico)
-    case PublishEventedEvent(picoUUID, event) => {
+    case RouteEventedToPico(picoUUID, event) => {
       // TODO: Add if sender == EventGateway?
-      publishEventedEvent(picoUUID, event)
+      routeEventedToPico(picoUUID, event)
     }
   }
 }
@@ -104,7 +104,7 @@ private[picocontainer] trait PicoContainerHelper { this: PicoContainer =>
     log.info("CreatePico: {}", msg)
 
     // Note: this is done outside the onComplete on purpose (so we don't close over mutable state) 
-    val transactionIdJson = msg.transactionId.map {id => Json.obj("transactionId" -> id) } getOrElse { Json.obj() }
+    val transactionIdJson = msg.transactionId.map { id => Json.obj("transactionId" -> id) } getOrElse { Json.obj() }
 
     picoContainerService.picoManagementService.createNewPico(msg.rulesets) onComplete {
       case Success((newPico, eci)) => {
@@ -127,7 +127,7 @@ private[picocontainer] trait PicoContainerHelper { this: PicoContainer =>
       }
     }
   }
-  
+
   def handleStartPico(msg: StartPico): Unit = {
     log.debug("handleStartPico: ({})", msg)
 

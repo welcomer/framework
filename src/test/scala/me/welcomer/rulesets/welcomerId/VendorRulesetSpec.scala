@@ -31,6 +31,7 @@ import me.welcomer.framework.testUtils.WelcomerFrameworkActorTest
 import me.welcomer.framework.testUtils.WelcomerFrameworkTestProbe
 import play.api.libs.json.JsValue
 import akka.actor.ActorSystem
+import me.welcomer.framework.pico.EventedMessage
 
 /**
  * Tests for [[me.welcomer.framework.pico.rulesets.welcomerId.VendorRuleset]]
@@ -463,7 +464,7 @@ trait VendorPicoPdsServiceComponentMockImpl extends PicoPdsServiceComponentMockI
 abstract class VendorRulesetMock(picoServices: PicoServicesComponent#PicoServices) extends VendorRuleset(picoServices) with PicoRulesetDSLMock /*with PdsResponseMock*/ {
   import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
 
-  protected def mockEventReply: PartialFunction[EventedEvent, Unit] = {
+  protected def mockEventReply: PartialFunction[EventedMessage, Unit] = {
     case event @ EventedEvent(_, _, _, _, None) => raisePicoEventMock(event)
     case event => {
       log.debug("Unmocked event: {}", event)

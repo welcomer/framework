@@ -14,13 +14,14 @@
  */
 package me.welcomer.framework.pico
 
+import scala.concurrent.ExecutionContext
+
 import akka.actor.ActorSelection.toScala
 import akka.actor.Props
 import akka.actor.actorRef2Scala
+
 import me.welcomer.framework.actors.WelcomerFrameworkActor
-import me.welcomer.framework.eventgateway.EventGateway
 import me.welcomer.framework.pico.service.PicoServicesComponent
-import scala.concurrent.ExecutionContext
 
 private[pico] object PicoRulesetContainer {
   case object Initialised
@@ -29,7 +30,8 @@ private[pico] object PicoRulesetContainer {
   //  case class Unsubscribe(eventDomain: Option[String], eventType: Option[String], localOnly: Boolean)
   //  case object UnubscribeAll
 
-  case class RaiseRemoteEvent(event: EventedEvent)
+  case class RaiseRemoteEvented(evented: EventedMessage)
+  case class RaiseRemoteEventedWithReplyTo(evented: EventedMessage)
   case class RaiseLocalEvent(event: EventedEvent)
 
   /**
@@ -54,8 +56,8 @@ private[pico] class PicoRulesetContainer(
   implicit def _picoServices = picoServices
 
   // TODO: Should we change this to use 'routing events' like in the FrameworkOverlord?
-  protected lazy val eventGatewayPath = "/user/overlord/event" // TODO: Load this from settings/something?
-  protected lazy val eventGateway = context.actorSelection(eventGatewayPath)
+  protected lazy val eventedGatewayPath = "/user/overlord/event" // TODO: Load this from settings/something?
+  protected lazy val eventedGateway = context.actorSelection(eventedGatewayPath)
 
   protected lazy val eventedEventBus = new PicoEventedEventBusImpl
 
@@ -69,16 +71,21 @@ private[pico] class PicoRulesetContainer(
   }
 
   def receive = {
-    case Subscribe(eventDomain, eventType, localOnly) if (isChild) => {
+    case Subscribe(eventDomain, eventType, localOnly) if fromChild => {
       log.debug("Subscribe: domain={}, type={}, localOnly={}", eventDomain, eventType, localOnly)
 
       eventedEventBus.subscribe(sender, eventDomain, eventType, localOnly)
     }
     // Raise
-    case RaiseRemoteEvent(event) if isChild => {
-      log.debug("RaiseRemoteEvent: {}", event)
+    case RaiseRemoteEvented(evented) if fromChild => {
+      log.debug("RaiseRemoteEvented: {}", evented)
 
-      eventGateway ! EventGateway.RaiseEvent(event)
+      eventedGateway ! evented
+    }
+    case RaiseRemoteEventedWithReplyTo(evented) /*if isChild(ref)*/ => {
+      log.debug("RaiseRemoteEventedWithReplyTo: {}", evented)
+
+      eventedGateway ! evented.withReplyTo(sender)
     }
     case RaiseLocalEvent(event) if acceptLocalEvent(event) => {
       log.debug("RaiseLocalEvent: {}", event)
@@ -90,14 +97,26 @@ private[pico] class PicoRulesetContainer(
     //
     //      self ! RaiseLocalEvent(event)
     //    }
+    //    case RaiseRemoteFunction(f) => // TODO
+    //    case RaiseLocalFunction(f) => // TODO
     // Receive
     case event: EventedEvent if acceptRemoteEvent(event) => {
       log.debug("Remote event received: {}", event)
 
       eventedEventBus.publish(event)
     }
+    case f: EventedFunction => {
+      log.debug("EventedFunction: {}", f)
+
+      f.replyTo map { replyTo =>
+        context.child(f.module.id) match {
+          case Some(module) => module.tell(f, replyTo)
+          case None => replyTo ! EventedFailure(UnknownModule(f.module.id))
+        }
+      } getOrElse { log.warning("No replyTo so dropping function call: {}", f) }
+    }
   }
 
-  def acceptLocalEvent(event: EventedEvent) = (isSelf || isChild) && event.entityId.isEmpty
-  def acceptRemoteEvent(event: EventedEvent) = isParent && event.entityId.isDefined
+  def acceptLocalEvent(event: EventedEvent) = (fromSelf || fromChild) && event.entityId.isEmpty
+  def acceptRemoteEvent(event: EventedEvent) = fromParent && event.entityId.isDefined
 }

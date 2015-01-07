@@ -29,3 +29,5 @@ project/plugins/project/
 org.scala-ide.sdt.core.prefs
 .settings
 reference.secure.conf
+/.target
+/bin
