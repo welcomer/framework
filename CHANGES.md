@@ -1,4 +1,4 @@
-# Changelog
+# Changes
 
 * 2015-01-07 v0.1.2
   * Added ruleset/module 'function' calls (incl from external web api)
