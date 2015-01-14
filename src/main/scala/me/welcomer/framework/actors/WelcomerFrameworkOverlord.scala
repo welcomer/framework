@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.actors
 
@@ -43,7 +43,7 @@ private[framework] object WelcomerFrameworkOverlord {
   def props(): Props = Props(classOf[WelcomerFrameworkOverlord])
 }
 
-private[framework] class WelcomerFrameworkOverlord() extends Actor with ActorLogging with DBUtils {
+private[framework] class WelcomerFrameworkOverlord() extends Actor with ActorLogging {
   import context._
   import WelcomerFrameworkOverlord._
 
@@ -92,9 +92,9 @@ private[framework] class WelcomerFrameworkOverlord() extends Actor with ActorLog
   }
 
   def receive = {
-    case Shutdown => self ! PoisonPill //context.stop(self)
-    case ToEciResolver(message) => eciResolver.forward(message)
-    case ToPicoContainer(message) => picoContainer.forward(message)
+    case Shutdown                  => self ! PoisonPill //context.stop(self)
+    case ToEciResolver(message)    => eciResolver.forward(message)
+    case ToPicoContainer(message)  => picoContainer.forward(message)
     case ToEventedGateway(message) => eventedGateway.forward(message)
   }
 

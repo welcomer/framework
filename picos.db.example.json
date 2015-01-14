@@ -1,0 +1,2 @@
+{ "_id" : { "$oid" : "5405384216514757cb000001" }, "picoUUID" : "testPicoUUID", "rulesets" : [ "HelloWorldRuleset", "HelloWorldRuleset", "ThisWillNeverExist" ] }
+{ "_id" : { "$oid" : "54acbdc4b4c9e63eea000001" }, "picoUUID" : "channelMappingTestPicoUUID", "rulesets" : [ "test.ChannelMappingTestRuleset" ] }

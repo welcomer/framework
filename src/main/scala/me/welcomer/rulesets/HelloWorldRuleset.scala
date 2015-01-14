@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.rulesets
 
@@ -24,6 +24,7 @@ import me.welcomer.framework.pico.EventedFailure
 import me.welcomer.framework.pico.EventedResult
 import me.welcomer.framework.pico.EventedFunction
 import me.welcomer.framework.pico.BasicError
+import scala.concurrent.Future
 
 class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extends PicoRuleset(picoServices) {
   import context._
@@ -70,13 +71,13 @@ class HelloWorldRuleset(picoServices: PicoServicesComponent#PicoServices) extend
   //  }
   override def provideFunction = {
     case EventedFunction(_, "fail", _, _) => EventedFailure(BasicError("This is a function fail result!"))
-    case _ => EventedSuccess("This is a function success result!")
+    case _                                => EventedSuccess("This is a function success result!")
   }
 
   override def selectWhen = {
-    case EventedEvent("TEST", "HELLO", _, _, _) => log.info("TEST:HELLO EventedEvent Received")
+    case EventedEvent("TEST", "HELLO", _, _, _)                     => log.info("TEST:HELLO EventedEvent Received")
     case event @ EventedEvent("TEST", "RaiseEventedEvent", _, _, _) => log.info("[TEST:RaiseEventedEvent] {}", event)
-    case event @ EventedEvent("PICO", _, _, _, _) => log.info("PICO EventedEvent Received ({})", event)
+    case event @ EventedEvent("PICO", _, _, _, _)                   => log.info("PICO EventedEvent Received ({})", event)
     case event @ EventedEvent("TEST", "Function", _, _, _) => {
       log.info("[TEST:Function] {}", event)
 

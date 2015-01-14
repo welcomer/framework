@@ -31,3 +31,7 @@ org.scala-ide.sdt.core.prefs
 reference.secure.conf
 /.target
 /bin
+
+# Ensime
+.ensime
+/.ensime_cache

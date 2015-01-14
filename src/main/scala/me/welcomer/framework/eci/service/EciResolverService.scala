@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.eci.service
 
@@ -38,7 +38,7 @@ trait EciResolverServiceComponentImpl extends EciResolverServiceComponent { self
       _eciRepository.findOne(ECISchema.eci -> eci) map { optionEci =>
         optionEci match {
           case Some(eciModel) => Some(eciModel.picoUUID)
-          case None => None
+          case None           => None
         }
       }
     }

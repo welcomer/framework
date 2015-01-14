@@ -10,21 +10,25 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.rulesets.welcomerId
+
 import scala.collection.mutable.HashMap
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success }
 import me.welcomer.framework.models.{ ECI, Pico }
 import me.welcomer.framework.pico.{ EventedEvent, PicoRuleset }
 import me.welcomer.framework.pico.service.PicoServicesComponent
+import me.welcomer.framework.pico.ruleset.patterns.TransactionIdMapping
 import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
-import me.welcomer.framework.pico.PicoRulesetHelper
 import play.api.libs.json._
 import scala.util.control.NonFatal
 
-class VendorRuleset(picoServices: PicoServicesComponent#PicoServices) extends PicoRuleset(picoServices) with VendorRulesetHelper {
+class VendorRuleset(picoServices: PicoServicesComponent#PicoServices)
+  extends PicoRuleset(picoServices)
+  with TransactionIdMapping
+  with VendorRulesetHelper {
   import context._
   import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
 
@@ -36,28 +40,28 @@ class VendorRuleset(picoServices: PicoServicesComponent#PicoServices) extends Pi
     case event @ EventedEvent(EventDomain.VENDOR, eventType, _, _, _) => {
       logEventInfo
       eventType match {
-        case EventType.INITIALISE_USER => handleEvent[InitialiseUser](handleInitialiseUser)
-        case EventType.RETRIEVE_USER_DATA => handleEvent[VendorRetrieveUserData](handleRetrieveUserData)
-        case EventType.USER_DATA_AVAILABLE => handleEvent[VendorUserDataAvailable](handleUserDataAvailable)
+        case EventType.INITIALISE_USER                       => handleEvent[InitialiseUser](handleInitialiseUser)
+        case EventType.RETRIEVE_USER_DATA                    => handleEvent[VendorRetrieveUserData](handleRetrieveUserData)
+        case EventType.USER_DATA_AVAILABLE                   => handleEvent[VendorUserDataAvailable](handleUserDataAvailable)
         case EventType.RETRIEVE_EDENTITI_ID_OR_NEW_USER_DATA => handleEvent[VendorRetrieveEdentitiIdOrNewUserData](handleVendorRetrieveEdentitiIdOrNewUserData)
-        case EventType.EDENTITI_NEW_USER => handleEvent[EdentitiNewUser](handleEdentitiNewUser)
-        case EventType.USER_VERIFICATION_NOTIFICATION => handleEvent[UserVerificationNotification](handleUserVerificationNotification)
-        case _ => log.debug("Unhandled {} EventedEvent Received ({})", EventDomain.VENDOR, event)
+        case EventType.EDENTITI_NEW_USER                     => handleEvent[EdentitiNewUser](handleEdentitiNewUser)
+        case EventType.USER_VERIFICATION_NOTIFICATION        => handleEvent[UserVerificationNotification](handleUserVerificationNotification)
+        case _                                               => log.debug("Unhandled {} EventedEvent Received ({})", EventDomain.VENDOR, event)
       }
     }
     case event @ EventedEvent(EventDomain.USER, eventType, _, _, _) => {
       logEventInfo
       eventType match {
-        case EventType.USER_DATA => handleEvent[UserData](handleUserData)
-        case EventType.EDENTITI_ID => handleEvent[EdentitiId](handleEdentitiId)
+        case EventType.USER_DATA              => handleEvent[UserData](handleUserData)
+        case EventType.EDENTITI_ID            => handleEvent[EdentitiId](handleEdentitiId)
         case EventType.EDENTITI_NEW_USER_DATA => handleEvent[EdentitiNewUserData](handleEdentitiNewUserData)
-        case _ => log.debug("Unhandled {} EventedEvent Received ({})", EventDomain.USER, event)
+        case _                                => log.debug("Unhandled {} EventedEvent Received ({})", EventDomain.USER, event)
       }
     }
   }
 }
 
-trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
+trait VendorRulesetHelper { this: VendorRuleset =>
   import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
   import me.welcomer.framework.utils.ImplicitConversions._
 
@@ -67,7 +71,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
   val USER_RULESETS = Set("welcomerId.UserRuleset")
 
   // -------
-  // Vendor 
+  // Vendor
   // -------
 
   protected def handleInitialiseUser(o: InitialiseUser, event: EventedEvent)(implicit ec: ExecutionContext): Unit = {
@@ -163,7 +167,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
 
       val result = m.channels.contains(newChannelDetails) match {
         case false => storeNewChannelDetails(m.userEci, newChannelDetails)
-        case true => Future(Json.obj()) // Do Nothing
+        case true  => Future(Json.obj()) // Do Nothing
       }
 
       result onComplete {
@@ -224,7 +228,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
 
     val isVerified = (result \ "outcome").asOpt[String] match {
       case Some(outcome) => verifiedStates.contains(outcome)
-      case None => false
+      case None          => false
     }
 
     log.debug("isVerified={}", isVerified)
@@ -338,7 +342,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
 
     _picoServices.pds.retrieve(selector, projection, USER_NAMESPACE) map {
       case Some(json) => (json \ "mappings")(0).asOpt[UserPicoMapping]
-      case None => None
+      case None       => None
     }
   }
 
@@ -349,7 +353,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
     _picoServices.pds.pushArrayItem(arrayKey, newChannelDetails, USER_NAMESPACE, selector, unique = true) map { result =>
       (result \ "n").asOpt[Int] match {
         case Some(n) if n > 0 => result
-        case _ => throw new Throwable(s"No documents were updated ($result) arrayKey=$arrayKey, arrayItem=$newChannelDetails")
+        case _                => throw new Throwable(s"No documents were updated ($result) arrayKey=$arrayKey, arrayItem=$newChannelDetails")
       }
     }
   }
@@ -357,7 +361,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
   def retrieveVendorPreferences(implicit ec: ExecutionContext): Future[VendorPreferences] = {
     _picoServices.pds.retrieveAllItems(VENDOR_PREFERENCES_NAMESPACE) map {
       case Some(pref) => pref.as[VendorPreferences]
-      case None => throw new Throwable("Vendor preferences weren't found")
+      case None       => throw new Throwable("Vendor preferences weren't found")
     }
   }
 
@@ -369,7 +373,7 @@ trait VendorRulesetHelper extends PicoRulesetHelper { this: VendorRuleset =>
     _picoServices.pds.pushArrayItem(arrayKey, arrayItem, USER_NAMESPACE, unique = true) map { result =>
       (result \ "n").asOpt[Int] match {
         case Some(n) if n > 0 => result
-        case _ => throw new Throwable(s"No documents were updated ($result) arrayKey=$arrayKey, arrayItem=$arrayItem")
+        case _                => throw new Throwable(s"No documents were updated ($result) arrayKey=$arrayKey, arrayItem=$arrayItem")
       }
     }
   }

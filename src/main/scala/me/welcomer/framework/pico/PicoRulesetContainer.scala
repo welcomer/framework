@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.pico
 
@@ -111,7 +111,7 @@ private[pico] class PicoRulesetContainer(
       f.replyTo map { replyTo =>
         context.child(f.module.id) match {
           case Some(module) => module.tell(f, replyTo)
-          case None => replyTo ! EventedFailure(UnknownModule(f.module.id))
+          case None         => replyTo ! EventedFailure(UnknownModule(f.module.id))
         }
       } getOrElse { log.warning("No replyTo so dropping function call: {}", f) }
     }

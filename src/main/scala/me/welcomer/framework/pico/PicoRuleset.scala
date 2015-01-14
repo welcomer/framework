@@ -10,16 +10,22 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.pico
 
+import scala.concurrent.ExecutionContext
+import scala.concurrent.Future
+
 import akka.actor.Props
+
+import play.api.libs.json.JsError
 
 import me.welcomer.framework.actors.WelcomerFrameworkActor
 import me.welcomer.framework.pico.service.PicoServicesComponent
 
 private[framework] object PicoRuleset {
+
   /**
    * Create Props for an actor of this type.
    * @param picoServices Scoped PicoServices instance.
@@ -32,7 +38,8 @@ private[framework] object PicoRuleset {
 
 abstract class PicoRuleset(picoServices: PicoServicesComponent#PicoServices) extends WelcomerFrameworkActor with PicoRulesetDSL {
   import context._
-  import me.welcomer.framework.utils.ImplicitConversions._
+  import scala.language.implicitConversions
+  //  import me.welcomer.framework.utils.ImplicitConversions._
 
   protected implicit def _picoServices = picoServices
 
@@ -52,7 +59,6 @@ abstract class PicoRuleset(picoServices: PicoServicesComponent#PicoServices) ext
   //  type CurrentEvent = EventedEvent
   //  type TransactionId = Option[String]
 
-
   private[this] var _curEvent: EventedEvent = _
   private[this] var _curTransactionId: Option[String] = None // TODO: Make this a case class (more specific scope for implicits) If so, have exists, generate, get, getOrGenerate methods?
 
@@ -68,14 +74,14 @@ abstract class PicoRuleset(picoServices: PicoServicesComponent#PicoServices) ext
 
   def selectWhen: PartialFunction[EventedEvent, Unit] = PartialFunction.empty
 
-  def provideFunction: PartialFunction[EventedFunction, EventedResult[_]] = PartialFunction.empty
+  def provideFunction: PartialFunction[EventedFunction, Future[Option[EventedResult[_]]]] = PartialFunction.empty
 
   //  def selectWhen(
   //    implicit event: EventedEvent,
   //    transactionId: TransactionId): PartialFunction[EventedEvent, Unit] = PartialFunction.empty
 
   final def receive = {
-    case event: EventedEvent => handleEvent(event)
+    case event: EventedEvent   => handleEvent(event)
     case func: EventedFunction => handleFunction(func)
   }
 
@@ -106,7 +112,7 @@ abstract class PicoRuleset(picoServices: PicoServicesComponent#PicoServices) ext
       return
     }
 
-    val result: EventedResult[_] = func match {
+    val resultFuture: Future[Option[EventedResult[_]]] = func match {
       case _ if !externalFunctionSharing => {
         log.debug("[handleFunction] ExternalFunctionSharing = {}", externalFunctionSharing)
 
@@ -124,51 +130,33 @@ abstract class PicoRuleset(picoServices: PicoServicesComponent#PicoServices) ext
       }
     }
 
-    func.replyTo map { _ ! result }
-  }
-
-}
-
-trait PicoRulesetHelper extends AnyRef 
-  with akka.actor.Actor
-  with akka.actor.ActorLogging
-  with PicoRaiseRemoteEventDSL 
-  with PicoRaisePicoEventDSL {
-  import scala.collection.mutable.HashMap
-  import play.api.libs.json.JsObject
-  import me.welcomer.rulesets.welcomerId.WelcomerIdSchema._
-  
-  var transactions = HashMap[String, Option[String]]() // TODO: Get rid of Option, make it just String?
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  def mapReplyToEci(transactionId: String, replyTo: Option[String] = None) /*(implicit event: EventedEvent)*/ = {
-    //    val storeReplyTo = replyTo match {
-    //      case replyTo @ Some(_) => replyTo
-    //      case None => event.entityId // This shouldn't be entityId, it should somehow map to the ECI allowed to use this entityId, as we want to know where it came from..
-    //    }
-    transactions += (transactionId -> replyTo)
-  }
-
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  def retrieveReplyToEci(transactionId: String, popEntry: Boolean): Option[String] = {
-    transactions.get(transactionId) flatMap { replyToOpt =>
-      if (popEntry) transactions -= transactionId // TODO: Is closing over this a bad idea? Maybe send a message so we can update it syncronously? (probably pull it up into PicoRuleset)
-
-      replyToOpt
+    func.replyTo map { ref =>
+      resultFuture map {
+        case Some(result) => ref ! result
+        case None         => log.debug("Function won't respond here, likely forwarded.")
+      }
     }
   }
 
-  // TODO: This is likely a fairly common pattern.. can we extract it?
-  def replyToTransaction(eventDomain: String, eventType: String, attributes: JsObject)(implicit event: EventedEvent, transactionIdOpt: Option[String]) = {
-    transactionIdOpt map { implicit transactionId =>
-      retrieveReplyToEci(transactionId, true) match {
-        //      transactions.get(transactionId) map { replyToOpt =>
-        //        transactions = transactions -= transactionId // TODO: Is closing over this a bad idea? Maybe send a message so we can update it syncronously? (probably pull it up into PicoRuleset)
+  // Helper implicits for provideFunction
 
-        //        replyToOpt match {
-        case Some(replyTo) => raiseRemoteEvent(eventDomain, eventType, attributes, replyTo)
-        case None => raisePicoEvent(eventDomain, eventType, attributes)
-      }
-      //      } getOrElse { log.error("'{}' not found in map, don't know who to reply to ({})", TRANSACTION_ID, event) }
-    } getOrElse { log.error("No '{}' to lookup so we can't map it to '{}' ({})", TRANSACTION_ID, REPLY_TO, event) }
+  implicit def wrapEventedResult(result: EventedResult[_])(implicit ec: ExecutionContext): Future[Option[EventedResult[_]]] = {
+    Future(Option(result))
+  }
+
+  implicit def wrapFutureEventedResult(futureResult: Future[EventedResult[_]])(implicit ec: ExecutionContext): Future[Option[EventedResult[_]]] = {
+    futureResult map { Option(_) }
+  }
+
+  implicit def wrapOptionEventedResult(result: Option[EventedResult[_]])(implicit ec: ExecutionContext): Future[Option[EventedResult[_]]] = {
+    Future(result)
+  }
+
+  implicit def wrapUnit(unit: Unit)(implicit ec: ExecutionContext): Future[Option[EventedResult[_]]] = {
+    Future(None)
+  }
+
+  implicit def wrapJsError(e: JsError)(implicit ec: ExecutionContext): Future[Option[EventedResult[_]]] = {
+    Future(Option(EventedFailure(EventedJsError(e))))
   }
 }

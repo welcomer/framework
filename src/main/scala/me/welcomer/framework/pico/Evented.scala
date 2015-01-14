@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.pico
 
@@ -57,7 +57,7 @@ sealed trait EventedResult[+A] { self =>
 
   def collect[B](otherwise: EventedError)(p: PartialFunction[A, B]): EventedResult[B] = flatMap {
     case t if p.isDefinedAt(t) => EventedSuccess(p(t))
-    case _ => EventedFailure(otherwise)
+    case _                     => EventedFailure(otherwise)
   }
 
   def flatMap[X](f: A => EventedResult[X]): EventedResult[X] = this match {
@@ -67,7 +67,7 @@ sealed trait EventedResult[+A] { self =>
 
   def foreach(f: A => Unit): Unit = this match {
     case EventedSuccess(a) => f(a)
-    case _ => ()
+    case _                 => ()
   }
 
   def get: A
@@ -79,7 +79,7 @@ sealed trait EventedResult[+A] { self =>
 
   def orElse[AA >: A](t: => EventedResult[AA]): EventedResult[AA] = this match {
     case s @ EventedSuccess(_) => s
-    case EventedFailure(_) => t
+    case EventedFailure(_)     => t
   }
 
   def asOpt = this match {
@@ -142,6 +142,14 @@ case class EventedFunction(
 
   def withReplyTo(replyTo: ActorRef) = this.copy(replyTo = Some(replyTo))
   def withNoReplyTo = this.copy(replyTo = None)
+
+  def withModuleId(newId: String) = this.copy(module = module.copy(id = newId))
+
+  def withModuleConfig(newConfig: JsObject) = this.copy(module = module.copy(config = newConfig))
+  def withNoModuleConfig = this.copy(module = module.copy(config = Json.obj()))
+
+  def withModuleEci(newEci: String) = this.copy(module = module.copy(eci = Option(newEci)))
+  def withNoModuleEci = this.copy(module = module.copy(eci = None))
 }
 
 // Timestamp should be 'HTTP Date'
@@ -184,9 +192,25 @@ object EventedEvent {
 
 // TODO: Wrap these errors up into their own package/object?
 
-trait EventedError
+trait EventedError {
+  def asJson: JsObject = Json.obj(
+    "errorType" -> this.getClass().getSimpleName,
+    "errorDescription" -> this.toString())
+}
 
-case class BasicError(msg: String) extends EventedError
+case class BasicError(msg: String) extends EventedError {
+  override def toString = msg
+}
+
+case class EventedJsonError(json: JsObject) extends EventedError {
+  override def asJson = json
+  override def toString = Json.stringify(asJson)
+}
+
+case class EventedJsError(e: JsError) extends EventedError {
+  override def asJson = JsError.toFlatJson(e)
+  override def toString = asJson.toString()
+}
 
 case class UnknownEci(eci: Option[String]) extends EventedError
 

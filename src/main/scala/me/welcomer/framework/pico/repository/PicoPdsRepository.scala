@@ -193,7 +193,8 @@ private[framework] trait PicoPdsRepositoryComponentReactiveMongoImpl extends Pic
         buildPicoScope(picoUUID) ++ scopedSelector,
         scopedArrayKey,
         item,
-        unique)
+        unique,
+        upsert = true)
     }
 
     override def unsetScopedKey(

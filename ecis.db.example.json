@@ -1,0 +1,2 @@
+{ "_id" : { "$oid" : "540d1bb616514757cb000002" }, "eci" : "testEci", "picoUUID" : "testPicoUUID" }
+{ "_id" : { "$oid" : "54acbdddb4c9e63eea000002" }, "eci" : "channelMappingTestEci", "picoUUID" : "channelMappingTestPicoUUID" }

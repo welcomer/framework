@@ -1,4 +1,4 @@
-/*  Copyright 2014 White Label Personal Clouds Pty Ltd
+/*  Copyright 2015 White Label Personal Clouds Pty Ltd
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.eventedgateway
 
@@ -153,7 +153,18 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
                       handleEventedResult(_)
                     }
                   }
-                }
+                } ~
+                  post {
+                    // TODO: Make a proper case class for this?
+                    entity(as[JsObject]) { json =>
+                      val config = (json \ "config").asOpt[JsObject].getOrElse(Json.obj())
+                      val args = (json \ "args").asOpt[JsObject].getOrElse(Json.obj())
+                      val call = callFunction(eci, moduleId, funcName, args, config)
+                      onSuccess(call) {
+                        handleEventedResult(_)
+                      }
+                    }
+                  }
               }
             }
           }
@@ -169,7 +180,8 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
           complete {
             Json.arr(
               Json.obj("link" -> "POST /v1/event/:eci"),
-              Json.obj("link" -> "GET /v1/func/:moduleId/:funcName?paramKeyN=paramValueN"))
+              Json.obj("link" -> "GET /v1/func/:moduleId/:funcName?paramKeyN=paramValueN"),
+              Json.obj("link" -> "POST /v1/func/:moduleId/:funcName"))
           }
         }
       }
@@ -181,9 +193,20 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
     moduleId: String,
     funcName: String,
     params: Map[String, String]): Future[EventedResult[_]] = {
-    val moduleConfig = Json.obj() // TODO: Make this configurable
+    val moduleConfig = Json.obj() // TODO: Make this configurable?
+    val funcParams = Json.toJson(params).as[JsObject]
+
+    callFunction(eci, moduleId, funcName, funcParams, moduleConfig)
+  }
+
+  def callFunction(
+    eci: String,
+    moduleId: String,
+    funcName: String,
+    params: JsObject = Json.obj(),
+    moduleConfig: JsObject = Json.obj()): Future[EventedResult[_]] = {
     val m = EventedModule(moduleId, moduleConfig, Some(eci))
-    val f = EventedFunction(m, funcName, Json.toJson(params).as[JsObject])
+    val f = EventedFunction(m, funcName, params)
 
     (eventedGateway ? EventedGateway.SenderAsReplyTo(f)).mapTo[EventedResult[_]]
   }
@@ -195,7 +218,7 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
       case EventedSuccess(s) => {
         s match {
           case s: JsObject => complete(s)
-          case s: String => complete(s)
+          case s: String   => complete(s)
           case _ => {
             log.error("[ExternalEventedEventService] Unhandled EventedResult: {}", s)
 
@@ -206,13 +229,7 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
       case EventedFailure(errors) => {
         log.error("[ExternalEventedEventService] Failure: {}", errors);
 
-        // TODO: Probably define a nicer way to serialise EventedFailure -> Json?
-        val errorsArr = errors.foldLeft(Json.arr()) { (arr, error) =>
-          arr :+ Json.obj(
-            "errorType" -> error.getClass.getSimpleName,
-            "errorMsg" -> error.toString) // TODO: Improve this
-        }
-
+        val errorsArr = errors.foldLeft(Json.arr()) { _ :+ _.asJson }
         val errorJson = Json.obj(
           "type" -> "error",
           "errors" -> errorsArr)
