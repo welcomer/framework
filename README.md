@@ -36,7 +36,9 @@ Our approach was to utilise open standards along with concepts from [Phil Windle
 * Got a great idea? Found a nasty bug? Just want to ask a question? Awesome, engage with us at the [issue tracker](https://github.com/welcomer/framework/issues).
 * Feel like adding a feature, squashing some bugs, or just tidying up a bit? [Pull requests](https://github.com/welcomer/framework/pulls) are Welcome(r)d with <3
 
-## Getting Started <a name="GettingStarted"></a>
+<a name="GettingStarted"></a>
+
+## Getting Started
 
 * Download/install mongodb (https://www.mongodb.org/downloads)
 * Download/install typesafe activator (https://typesafe.com/get-started)
