@@ -5,9 +5,13 @@
 /project/target/
 /target/
 
+application.conf
+*.application.conf
+reference.secure.conf
+
 # Eclipse
-/.classpath
-/.project
+.classpath
+.project
 
 *.class
 *.log
@@ -28,10 +32,14 @@ project/plugins/project/
 .worksheet
 org.scala-ide.sdt.core.prefs
 .settings
-reference.secure.conf
-/.target
+.target
 /bin
 
 # Ensime
 .ensime
-/.ensime_cache
+.ensime_cache
+
+#intellij
+.idea/
+.idea_modules/
+/projectFilesBackup/

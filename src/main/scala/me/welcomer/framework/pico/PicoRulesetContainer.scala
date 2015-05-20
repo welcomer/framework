@@ -19,6 +19,7 @@ import scala.concurrent.ExecutionContext
 import akka.actor.ActorSelection.toScala
 import akka.actor.Props
 import akka.actor.actorRef2Scala
+import me.welcomer.framework.pico.dsl.PicoRulesetContainerDSL
 
 import me.welcomer.framework.actors.WelcomerFrameworkActor
 import me.welcomer.framework.pico.service.PicoServicesComponent

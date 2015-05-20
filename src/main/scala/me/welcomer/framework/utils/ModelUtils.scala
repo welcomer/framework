@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.utils
 
@@ -99,7 +99,7 @@ object ModelMetadata {
 
   //  implicit val modelMetadataFormat: Format[ModelMetadata] = new Format[ModelMetadata] {
   implicit val modelMetadataReads: Reads[ModelMetadata] = new Reads[ModelMetadata] {
-    import me.welcomer.framework.utils.JsonUtils
+    import me.welcomer.utils.JsonUtils
 
     //  val base = Json.format[ModelMetadata]
     def reads(json: JsValue): JsResult[ModelMetadata] = {
@@ -122,7 +122,7 @@ object ModelMetadata {
 
           dataTry match {
             case Success((id, version, createdAt, updatedAt)) => JsSuccess(ModelMetadata(id, version, createdAt, updatedAt))
-            case Failure(e) => JsError(e.getMessage())
+            case Failure(e)                                   => JsError(e.getMessage())
           }
         }
         case e: JsError => e

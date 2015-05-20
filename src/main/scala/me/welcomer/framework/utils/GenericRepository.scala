@@ -10,18 +10,16 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.utils
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
-import scala.util.Failure
-import scala.util.Success
-import scala.util.Try
 
 import play.api.libs.iteratee.Iteratee
 import play.api.libs.json.Format
+import play.api.libs.json.JsArray
 import play.api.libs.json.JsObject
 import play.api.libs.json.JsValue
 import play.api.libs.json.Json
@@ -29,6 +27,7 @@ import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import play.api.libs.json.Writes
 import play.modules.reactivemongo.json.BSONFormats
 import play.modules.reactivemongo.json.collection.JSONCollection
+
 import reactivemongo.api.collections.default.BSONCollection
 import reactivemongo.bson.BSONDocument
 import reactivemongo.bson.BSONDocumentReader
@@ -37,7 +36,7 @@ import reactivemongo.bson.DefaultBSONHandlers.BSONDocumentIdentity
 import reactivemongo.core.commands.LastError
 
 // Interface
-@deprecated("Use GenericJsonRepository instead")
+@deprecated("Use GenericJsonRepository instead", "0.0.1")
 trait GenericRepository[T] {
   // Read
 
@@ -112,6 +111,14 @@ trait GenericJsonRepository[T] {
     upsert: Boolean = false,
     multi: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject]
 
+  def pushArrayItems(
+    selector: JsObject,
+    arrayKey: String,
+    items: Seq[JsValue],
+    unique: Boolean = false,
+    upsert: Boolean = false,
+    multi: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject]
+
   def unsetKeys(
     selector: JsObject,
     unsetKeys: List[String],
@@ -123,7 +130,7 @@ trait GenericJsonRepository[T] {
     multi: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject]
 }
 
-@deprecated("Use GenericRepositoryReactiveMongoJsonImpl instead")
+@deprecated("Use GenericRepositoryReactiveMongoJsonImpl instead", "0.0.1")
 trait GenericRepositoryReactiveMongoImpl[T] extends GenericRepository[T] with DBUtils {
   import reactivemongo.bson.DefaultBSONHandlers._
 
@@ -168,14 +175,14 @@ trait GenericRepositoryReactiveMongoImpl[T] extends GenericRepository[T] with DB
   override def save(model: T)(implicit ec: ExecutionContext): Future[Unit] = {
     dbCollection.save(model) flatMap { lastError =>
       if (lastError.inError) Future.failed(lastError.getCause())
-      else Future()
+      else Future.successful(Unit)
     }
   }
 
   override def insert(model: T)(implicit ec: ExecutionContext): Future[Unit] = {
     dbCollection.insert(model) map { lastError =>
       if (lastError.inError) Future.failed(lastError.getCause())
-      else Future()
+      else Future.successful(Unit)
     }
   }
 }
@@ -193,7 +200,7 @@ trait GenericRepositoryReactiveMongoJsonImpl[T] extends GenericJsonRepository[T]
       if (lastError.inError) Future.failed(lastError.getCause())
       else {
         val json = lastError.elements.foldLeft(Json.obj()) { (json, bsonPair) => json ++ Json.obj(bsonPair._1 -> BSONFormats.toJSON(bsonPair._2)) }
-        Future(json)
+        Future.successful(json)
       }
     }
   }
@@ -289,7 +296,23 @@ trait GenericRepositoryReactiveMongoJsonImpl[T] extends GenericJsonRepository[T]
     multi: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject] = {
     val updateJson = unique match {
       case false => Json.obj("$push" -> Json.obj(arrayKey -> item))
-      case true => Json.obj("$addToSet" -> Json.obj(arrayKey -> item))
+      case true  => Json.obj("$addToSet" -> Json.obj(arrayKey -> item))
+    }
+
+    update(selector, updateJson, upsert = upsert, multi = multi)
+  }
+
+  override def pushArrayItems(
+    selector: JsObject,
+    arrayKey: String,
+    items: Seq[JsValue],
+    unique: Boolean = false,
+    upsert: Boolean = false,
+    multi: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject] = {
+    val itemsArr = Json.toJson(items).asOpt[JsArray]
+    val updateJson = unique match {
+      case false => Json.obj("$push" -> Json.obj(arrayKey -> Json.obj("$each" -> itemsArr)))
+      case true  => Json.obj("$addToSet" -> Json.obj(arrayKey -> Json.obj("$each" -> itemsArr)))
     }
 
     update(selector, updateJson, upsert = upsert, multi = multi)

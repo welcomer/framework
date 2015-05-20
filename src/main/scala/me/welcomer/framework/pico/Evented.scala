@@ -110,12 +110,22 @@ case class EventedFailure(errors: Seq[EventedError]) extends EventedResult[Nothi
   def prepend(error: EventedError): EventedFailure = this.+:(error)
 
   // def asThrowable = throw new ...
+
+  def asJson: JsObject = {
+    val errorsArr = errors.foldLeft(Json.arr()) { _ :+ _.asJson }
+    Json.obj(
+      "type" -> "error",
+      "errors" -> errorsArr)
+  }
 }
 
 object EventedFailure {
   def apply(): EventedFailure = EventedFailure(Seq())
   def apply(error: EventedError): EventedFailure = EventedFailure(Seq(error))
   def apply(error: String): EventedFailure = EventedFailure(BasicError(error))
+  def apply(error: JsObject): EventedFailure = EventedFailure(EventedJsonError(error))
+  def apply(error: JsError): EventedFailure = EventedFailure(EventedJsError(error))
+  def apply(error: Throwable): EventedFailure = EventedFailure(EventedThrowableError(error))
 
   def merge(e1: Seq[EventedError], e2: Seq[EventedError]): Seq[EventedError] = {
     (e1 ++ e2)
@@ -140,6 +150,8 @@ case class EventedFunction(
   replyTo: Option[ActorRef] = None) extends EventedMessage {
   def entityId = module.eci
 
+  def withArgs(newArgs: JsObject) = this.copy(args = newArgs)
+
   def withReplyTo(replyTo: ActorRef) = this.copy(replyTo = Some(replyTo))
   def withNoReplyTo = this.copy(replyTo = None)
 
@@ -159,6 +171,8 @@ case class EventedEvent(
   timestamp: Option[Date] = Some(new Date()), // TODO: Should we shift this after attributes (or to the very end?) since it's less likely to be manually set?
   attributes: JsObject = Json.obj(), // TODO: Should we add apply() helper methods that accepts a Map[String, String] or Set/List((String, String))
   entityId: Option[String] = None) extends EventedMessage with Ordered[EventedEvent] {
+
+  def withAttributes(newAttributes: JsObject) = this.copy(attributes = newAttributes)
 
   def withEntityId(newEntityId: String) = this.copy(entityId = Option(newEntityId))
   def withNoEntityId = this.copy(entityId = None)
@@ -198,6 +212,10 @@ trait EventedError {
     "errorDescription" -> this.toString())
 }
 
+case class EventedThrowableError(e: Throwable) extends EventedError {
+  override def toString = e.getMessage
+}
+
 case class BasicError(msg: String) extends EventedError {
   override def toString = msg
 }
@@ -209,6 +227,11 @@ case class EventedJsonError(json: JsObject) extends EventedError {
 
 case class EventedJsError(e: JsError) extends EventedError {
   override def asJson = JsError.toFlatJson(e)
+  override def toString = asJson.toString()
+}
+
+case class PermissionDenied(json: JsObject = Json.obj()) extends EventedError {
+  override def asJson = Json.obj("errorType" -> this.getClass().getSimpleName) ++ json
   override def toString = asJson.toString()
 }
 

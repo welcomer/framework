@@ -10,13 +10,16 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework
 
-import com.typesafe.config.ConfigFactory
-import com.typesafe.config.Config
 import scala.concurrent.duration._
+
+import java.util.concurrent.TimeUnit
+
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
 
 private[framework] object Settings {
   def apply() = {
@@ -58,7 +61,9 @@ private[framework] class Settings(configOption: Option[Config] = None) {
   //  }
 
   object EventedEntityResolver {
-    val timeout: FiniteDuration = FiniteDuration(config.getLong("eventedEntityResolver.timeout"), MILLISECONDS)
+    val timeout: FiniteDuration = FiniteDuration(
+      config.getDuration("eventedEntityResolver.timeout", TimeUnit.MILLISECONDS),
+      TimeUnit.MILLISECONDS)
     val retries: Int = config.getInt("eventedEntityResolver.retries")
     val eventTraceLogDepth: Int = config.getInt("eventedEntityResolver.eventTraceLogDepth")
   }
@@ -67,6 +72,14 @@ private[framework] class Settings(configOption: Option[Config] = None) {
     object Bind {
       val interface: String = config.getString("externalEventGateway.bind.interface")
       val port: Int = config.getInt("externalEventGateway.bind.port")
+    }
+    object EventedFunction {
+      val defaultTimeout: FiniteDuration = FiniteDuration(
+        config.getDuration("externalEventGateway.eventedFunction.defaultTimeout", TimeUnit.MILLISECONDS),
+        TimeUnit.MILLISECONDS)
+      val maxTimeout: FiniteDuration = FiniteDuration(
+        config.getDuration("externalEventGateway.eventedFunction.maxTimeout", TimeUnit.MILLISECONDS),
+        TimeUnit.MILLISECONDS)
     }
   }
 }

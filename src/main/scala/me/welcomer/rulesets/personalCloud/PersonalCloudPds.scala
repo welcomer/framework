@@ -81,7 +81,7 @@ class PersonalCloudPds(protected val picoServices: PicoServicesComponent#PicoSer
 
 trait PersonalCloudPdsHelper { this: PersonalCloudPds =>
   import context._
-  import me.welcomer.framework.utils.Jsonable
+  import me.welcomer.utils.Jsonable
   import play.api.libs.functional.syntax._
 
   // Events

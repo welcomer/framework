@@ -10,16 +10,17 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.rulesets.welcomerId
+
 import scala.annotation.implicitNotFound
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
-import me.welcomer.framework.utils.Jsonable
+import me.welcomer.utils.Jsonable
 
 object WelcomerIdSchema {
-  import me.welcomer.framework.pico.PicoEventSchema._
+  import me.welcomer.framework.pico.dsl.PicoEventSchema._
 
   object EventDomain {
     val WELCOMER_ID = "welcomerId"

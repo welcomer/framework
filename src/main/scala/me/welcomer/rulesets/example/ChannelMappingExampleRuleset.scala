@@ -52,7 +52,8 @@ class ChannelMappingExampleRuleset(picoServices: PicoServicesComponent#PicoServi
     case event @ EventedEvent(EVENT_DOMAIN, eventType, _, _, _) => {
       logEventInfo
       eventType match {
-        case "mapChannel" => handleEvent[MapChannel](handleMapChannel)
+        case "mapChannel"         => handleEvent[MapChannel](handleMapChannel)
+        case "mapChannelManually" => handleEvent[MapChannel](handleMapChannelManually)
       }
     }
   }
@@ -60,12 +61,27 @@ class ChannelMappingExampleRuleset(picoServices: PicoServicesComponent#PicoServi
   protected def handleMapChannel(o: MapChannel, event: EventedEvent)(implicit ec: ExecutionContext): Unit = {
     val rulesets = Set("HelloWorldRuleset")
 
+    val futurePicoMapping = retrieveOrMapNewPico(o.channelDetails, rulesets)
+
+    // Some optional logging to see what happened
+    futurePicoMapping onComplete {
+      case Success((mapping, didExist)) => {
+        if (didExist) log.info("ECI found for channel, nothing to do: {} ({})", mapping.picoEci, event)
+        else log.info("Pico created & mapped: {}->{} ({})", o.channelDetails, mapping.picoEci);
+      }
+      case Failure(e) => log.error(e, "Error retrieving/creating pico mapping: {} ({}, {})", e.getMessage(), o, event)
+    }
+  }
+
+  protected def handleMapChannelManually(o: MapChannel, event: EventedEvent)(implicit ec: ExecutionContext): Unit = {
+    val rulesets = Set("HelloWorldRuleset")
+
     retrieveMapping(o.channelDetails) map {
       case Some(mapping) => log.info("ECI found for channel, nothing to do: {} ({})", mapping.picoEci, event)
       case None => {
         mapNewPico(o.channelDetails, rulesets) onComplete {
-          case Success((picoEci, replyToEci, storeResult)) => log.info("Pico created & mapped: {}->{} ({})", o.channelDetails, picoEci, storeResult);
-          case Failure(e)                                  => log.error(e, "Error creating/mapping new pico: {} ({}, {})", e.getMessage(), o, event);
+          case Success(picoMapping) => log.info("Pico created & mapped: {}->{} ({})", o.channelDetails, picoMapping.picoEci);
+          case Failure(e)           => log.error(e, "Error creating/mapping new pico: {} ({}, {})", e.getMessage(), o, event);
         }
       }
     }

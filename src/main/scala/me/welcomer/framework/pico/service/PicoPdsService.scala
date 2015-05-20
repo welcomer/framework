@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.pico.service
 
@@ -62,12 +62,17 @@ trait PicoPdsServiceComponent { self: PicoPdsRepositoryComponent =>
      * @param key The key of the item to retrieve
      * @param The item to be stored
      * @param namespace An optional namespace to locate the key in
+     * @param selector An optional selection query
      * @return The results of the store
      */
     def storeItem[T](key: String, item: T, namespace: Option[String] = None)(implicit ec: ExecutionContext, writeT: Writes[T]): Future[JsObject]
 
     // TODO: Remove this for the generic method when we switch BSON to JSON
-    def storeItemWithJsValue(key: String, item: JsValue, namespace: Option[String] = None)(implicit ec: ExecutionContext): Future[JsObject]
+    def storeItemWithJsValue(
+      key: String,
+      item: JsValue,
+      namespace: Option[String] = None,
+      selector: Option[JsObject] = None)(implicit ec: ExecutionContext): Future[JsObject]
 
     // TODO: Remove this for the generic method when we switch BSON to JSON
     // TODO: Maybe rename this to merge? Or maybe just make storeItem smarter (with a shouldMerge type flag)
@@ -86,6 +91,23 @@ trait PicoPdsServiceComponent { self: PicoPdsRepositoryComponent =>
     def pushArrayItem(
       arrayKey: String,
       item: JsValue,
+      namespace: Option[String] = None,
+      selector: Option[JsObject] = None,
+      unique: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject]
+
+    /**
+     * Push items into array in the specified (or default) namespace.
+     *
+     * @param arrayKey The key of the array to modify
+     * @param items The items to push into the array
+     * @param namespace An optional namespace to locate the key in
+     * @param selector An optional selection query
+     * @param unique Should the items be unique in the array? (won't be added if already exists)
+     * @return The results of the store
+     */
+    def pushArrayItems(
+      arrayKey: String,
+      items: Seq[JsValue],
       namespace: Option[String] = None,
       selector: Option[JsObject] = None,
       unique: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject]
@@ -115,7 +137,7 @@ trait PicoPdsServiceComponent { self: PicoPdsRepositoryComponent =>
      * Retrieve all items in the specified (or default) namespace from the PDS.
      *
      *  @param namespace An optional namespace to locate the key in
-     *  @param filter A JsObject containing the keys to be included
+     *  @param filter A list containing the keys to be included
      *  @return The retrieved items or None
      */
     def retrieveAllItems(namespace: Option[String] = None, filter: Option[List[String]] = None)(implicit ec: ExecutionContext): Future[Option[JsObject]]
@@ -132,9 +154,11 @@ trait PicoPdsServiceComponent { self: PicoPdsRepositoryComponent =>
     /**
      * Retrieve all namespaces and their items from the PDS.
      *
+     * @param filter A list containing the keys to be included
+     *
      * @return The retrieved items or None
      */
-    def retrieveAllNamespaces(implicit ec: ExecutionContext): Future[Option[JsObject]]
+    def retrieveAllNamespaces(filter: Option[List[String]] = None)(implicit ec: ExecutionContext): Future[Option[JsObject]]
 
     /**
      * Remove a single item in the specified (or default) namespace from the PDS.
@@ -179,8 +203,12 @@ trait PicoPdsServiceComponentImpl extends PicoPdsServiceComponent { self: PicoPd
     }
 
     // TODO: Remove this for the generic method when we switch BSON to JSON
-    override def storeItemWithJsValue(key: String, item: JsValue, namespace: Option[String] = None)(implicit ec: ExecutionContext): Future[JsObject] = {
-      _picoPdsRepository.setScopedKey(namespace, Some(key), item)
+    override def storeItemWithJsValue(
+      key: String,
+      item: JsValue,
+      namespace: Option[String] = None,
+      selector: Option[JsObject] = None)(implicit ec: ExecutionContext): Future[JsObject] = {
+      _picoPdsRepository.setScopedKey(namespace, Some(key), item, selector = selector)
     }
 
     // TODO: Remove this for the generic method when we switch BSON to JSON
@@ -200,6 +228,15 @@ trait PicoPdsServiceComponentImpl extends PicoPdsServiceComponent { self: PicoPd
       _picoPdsRepository.pushScopedArrayItem(arrayKey, item, namespace, selector, unique)
     }
 
+    override def pushArrayItems(
+      arrayKey: String,
+      items: Seq[JsValue],
+      namespace: Option[String] = None,
+      selector: Option[JsObject] = None,
+      unique: Boolean = false)(implicit ec: ExecutionContext): Future[JsObject] = {
+      _picoPdsRepository.pushScopedArrayItems(arrayKey, items, namespace, selector, unique)
+    }
+
     override def retrieve(
       query: JsObject,
       projection: JsObject,
@@ -212,7 +249,7 @@ trait PicoPdsServiceComponentImpl extends PicoPdsServiceComponent { self: PicoPd
       // TODO: Push this functionality down into the repos level?
       _picoPdsRepository.findScopedDocument(namespace) map {
         case Some(result) => (result \ key).asOpt[T]
-        case None => None
+        case None         => None
       }
     }
 
@@ -227,8 +264,8 @@ trait PicoPdsServiceComponentImpl extends PicoPdsServiceComponent { self: PicoPd
     //      }
     //    }
 
-    override def retrieveAllNamespaces(implicit ec: ExecutionContext): Future[Option[JsObject]] = {
-      _picoPdsRepository.findScopedDocument(None, ignoreNamespace = true)
+    override def retrieveAllNamespaces(filter: Option[List[String]] = None)(implicit ec: ExecutionContext): Future[Option[JsObject]] = {
+      _picoPdsRepository.findScopedDocument(None, filter, ignoreNamespace = true)
     }
 
     override def removeItem(key: String, namespace: Option[String] = None)(implicit ec: ExecutionContext): Future[JsObject] = {

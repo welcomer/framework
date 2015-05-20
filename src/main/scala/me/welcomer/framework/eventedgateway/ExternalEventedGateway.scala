@@ -17,13 +17,16 @@ package me.welcomer.framework.eventedgateway
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
 import scala.concurrent.duration._
+import scala.util.control.NonFatal
 
-import scala.util.{ Success, Failure }
+import java.text.SimpleDateFormat
+import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorPath
 import akka.actor.ActorRef
 import akka.actor.Props
 import akka.io.IO
+import akka.pattern.AskTimeoutException
 import akka.util.Timeout
 
 import play.api.libs.json._
@@ -31,19 +34,19 @@ import play.api.libs.json._
 import me.welcomer.framework.Settings
 import me.welcomer.framework.actors.WelcomerFrameworkActor
 import me.welcomer.framework.pico.EventedEvent
-
-import me.welcomer.framework.pico.EventedModule
+import me.welcomer.framework.pico.EventedFailure
 import me.welcomer.framework.pico.EventedFunction
-import me.welcomer.framework.pico.EventedError
+import me.welcomer.framework.pico.EventedModule
 import me.welcomer.framework.pico.EventedResult
 import me.welcomer.framework.pico.EventedSuccess
-import me.welcomer.framework.pico.EventedFailure
+import me.welcomer.framework.pico.PermissionDenied
 
 import spray.can.Http
 import spray.http._
 import spray.http.MediaTypes._
 import spray.httpx.PlayJsonSupport
 import spray.routing._
+import spray.util.LoggingContext
 
 private[framework] object ExternalEventedGateway {
   /**
@@ -61,8 +64,8 @@ private[framework] object ExternalEventedGateway {
 }
 
 private[framework] class ExternalEventGateway(
-  settings: Settings,
-  eventedGatewayPath: ActorPath) extends WelcomerFrameworkActor with ExternalEventedEventServiceImpl {
+  protected val settings: Settings,
+  eventedGatewayPath: ActorPath) extends WelcomerFrameworkActor with ExternalEventedEventService {
 
   import akka.pattern.ask
   //  import context._
@@ -96,21 +99,36 @@ private[framework] class ExternalEventGateway(
   def receive = runRoute(routes)
 }
 
-trait ExternalEventedEventServiceImpl extends ExternalEventedEventService { this: ExternalEventGateway =>
-  def raiseEvent(event: EventedEvent): Route = { ctx =>
-    log.info("[raiseEvent] event={}", event)
-
-    eventedGateway ! event
-
-    ctx.complete(Json.obj("msg" -> "Event raised asynchronously"))
-  }
-}
-
 // TODO: Refactor this into a proper cake pattern?
-trait ExternalEventedEventService extends HttpService with PlayJsonSupport { this: ExternalEventGateway =>
+trait ExternalEventedEventService
+  extends HttpService
+  with PlayJsonSupport
+  with CORSSupport { this: ExternalEventGateway =>
+
   import akka.pattern.ask
 
   implicit def executionContext = actorRefFactory.dispatcher
+
+  implicit def exceptionHandler(implicit log: LoggingContext) =
+    ExceptionHandler {
+      case e: AskTimeoutException =>
+        requestUri { uri =>
+          log.error(e, "AskTimeoutException: uri={}", uri)
+
+          complete(
+            StatusCodes.GatewayTimeout,
+            Json.obj("errorType" -> "AskTimeoutException"))
+        }
+      case NonFatal(e) => {
+        requestUri { uri =>
+          log.error(e, "InternalServerError: uri={}", uri)
+
+          complete(
+            StatusCodes.InternalServerError,
+            Json.obj("errorType" -> "InternalServerError"))
+        }
+      }
+    }
 
   val v1 = pathPrefix("v1")
   val event = pathPrefix("event")
@@ -119,81 +137,108 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
   def TODO(msg: String) = failWith(new RuntimeException(s"TODO: $msg"))
 
   val routes =
-    v1 {
-      event {
-        path(Segment) { eci =>
-          post {
-            entity(as[EventedEvent]) { event =>
-              raiseEvent(event.withEntityId(eci))
-            }
+    cors {
+      v1 {
+        event {
+          path(Segment) { eci =>
+            post {
+              entity(as[EventedEvent]) { event =>
+                raiseEvent(event.withEntityId(eci))
+              }
+            } ~
+              get {
+                parameterMap { params =>
+                  raiseEvent(eci, params)
+                }
+              }
           }
-          // ~
-          //            get {
-          //              parameters("_domain", "_type", "_timestamp".as[Date]) { (_domain, _type, _timestamp) =>
-          //
-          //                raiseEvent(
-          //                  eci,
-          //                  RaiseEventBody(
-          //                    _domain,
-          //                    _type,
-          //                    _timestamp,
-          //                    Json.obj("TODO" -> "TODO")))
-          //              }
-          //            }
-        }
-      } ~
-        func {
-          headerValueByName("X-Eci") { eci =>
+        } ~
+          func {
             pathPrefix(Segment) { moduleId =>
               path(Segment) { funcName =>
                 get {
-                  parameterMap { params =>
-                    val call = callFunction(eci, moduleId, funcName, params)
-                    onSuccess(call) {
-                      handleEventedResult(_)
+                  headerValueByName("Authorization") { eci =>
+                    parameterMap { params =>
+                      val call = callFunction(eci, moduleId, funcName, params)
+                      onSuccess(call) {
+                        handleEventedResult(_)
+                      }
                     }
                   }
                 } ~
                   post {
-                    // TODO: Make a proper case class for this?
-                    entity(as[JsObject]) { json =>
-                      val config = (json \ "config").asOpt[JsObject].getOrElse(Json.obj())
-                      val args = (json \ "args").asOpt[JsObject].getOrElse(Json.obj())
-                      val call = callFunction(eci, moduleId, funcName, args, config)
-                      onSuccess(call) {
-                        handleEventedResult(_)
+                    headerValueByName("Authorization") { eci =>
+                      // TODO: Make a proper case class for this?
+                      entity(as[JsObject]) { json =>
+                        val config = (json \ "config").asOpt[JsObject].getOrElse(Json.obj())
+                        val args = (json \ "args").asOpt[JsObject].getOrElse(Json.obj())
+                        val call = callFunction(eci, moduleId, funcName, args, config)
+                        onSuccess(call) {
+                          handleEventedResult(_)
+                        }
                       }
                     }
                   }
               }
             }
           }
-        }
-    } ~
-      //      path("fail") {
-      //        get {
-      //          failWith(new RuntimeException("testing exception failureness"))
-      //        }
-      //      } ~
-      path("") {
-        get {
-          complete {
-            Json.arr(
-              Json.obj("link" -> "POST /v1/event/:eci"),
-              Json.obj("link" -> "GET /v1/func/:moduleId/:funcName?paramKeyN=paramValueN"),
-              Json.obj("link" -> "POST /v1/func/:moduleId/:funcName"))
+      } ~
+        //      path("fail") {
+        //        get {
+        //          failWith(new RuntimeException("testing exception failureness"))
+        //        }
+        //      } ~
+        path("") {
+          get {
+            complete {
+              Json.arr(
+                Json.obj("link" -> "POST /v1/event/:eci"),
+                Json.obj("link" -> "GET /v1/event/:eci?_domain=myDomain&_type=myType&attrKeyN=attrValueN"),
+                Json.obj("link" -> "POST /v1/func/:moduleId/:funcName"),
+                Json.obj("link" -> "GET /v1/func/:moduleId/:funcName?paramKeyN=paramValueN"))
+            }
           }
         }
-      }
+    }
 
-  def raiseEvent(event: EventedEvent): Route
+  def raiseEvent(event: EventedEvent): Route = { ctx =>
+    log.info("[raiseEvent] event={}", event)
+
+    eventedGateway ! event
+
+    ctx.complete(Json.obj("msg" -> "Event raised asynchronously"))
+  }
+
+  def raiseEvent(eci: String, params: Map[String, String]): Route = {
+    val eventDomain = params.get("_domain")
+    val eventType = params.get("_type")
+    val timestamp = params.get("_timestamp")
+    val attr = params - ("_domain", "_type", "_timestamp")
+
+    if (eventDomain.isEmpty | eventType.isEmpty) {
+      val errorJson = Json.obj(
+        "type" -> "error",
+        "desc" -> "Event _domain and _type are required.")
+
+      complete(StatusCodes.BadRequest, errorJson)
+    } else {
+      val event = EventedEvent(
+        eventDomain.get,
+        eventType.get,
+        timestamp = timestamp map { new SimpleDateFormat().parse(_) },
+        attributes = Json.toJson(attr).as[JsObject],
+        entityId = Some(eci))
+
+      raiseEvent(event)
+    }
+  }
 
   def callFunction(
     eci: String,
     moduleId: String,
     funcName: String,
     params: Map[String, String]): Future[EventedResult[_]] = {
-    val moduleConfig = Json.obj() // TODO: Make this configurable?
+    val moduleConfig = Json.obj()
     val funcParams = Json.toJson(params).as[JsObject]
 
     callFunction(eci, moduleId, funcName, funcParams, moduleConfig)
@@ -205,9 +250,23 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
     funcName: String,
     params: JsObject = Json.obj(),
     moduleConfig: JsObject = Json.obj()): Future[EventedResult[_]] = {
-    val m = EventedModule(moduleId, moduleConfig, Some(eci))
+    val timeoutDuration = (moduleConfig \ "timeout").asOpt[Int] map { timeout =>
+      val confTimeout = FiniteDuration(timeout, TimeUnit.MILLISECONDS)
+      val maxTimeout = settings.ExternalEventGateway.EventedFunction.maxTimeout
+
+      (confTimeout < maxTimeout) match {
+        case true => confTimeout
+        case false => {
+          log.debug("[callFunction] confTimeout > maxTimeout, using maxTimeout={}", maxTimeout)
+          maxTimeout
+        }
+      }
+    } getOrElse { settings.ExternalEventGateway.EventedFunction.defaultTimeout }
+
+    val m = EventedModule(moduleId, moduleConfig, Some(eci), timeoutDuration)
     val f = EventedFunction(m, funcName, params)
 
+    implicit val timeout = Timeout(timeoutDuration)
     (eventedGateway ? EventedGateway.SenderAsReplyTo(f)).mapTo[EventedResult[_]]
   }
 
@@ -218,11 +277,12 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
       case EventedSuccess(s) => {
         s match {
           case s: JsObject => complete(s)
+          case s: JsArray  => complete(s)
           case s: String   => complete(s)
           case _ => {
             log.error("[ExternalEventedEventService] Unhandled EventedResult: {}", s)
 
-            failWith(new Error(s"Unhandled EventedResult: {}"))
+            failWith(new Error(s"Unhandled EventedResult: $s"))
           }
         }
       }
@@ -234,7 +294,11 @@ trait ExternalEventedEventService extends HttpService with PlayJsonSupport { thi
           "type" -> "error",
           "errors" -> errorsArr)
 
-        complete(StatusCodes.BadRequest, errorJson)
+        if (errors.exists(_.isInstanceOf[PermissionDenied])) {
+          complete(StatusCodes.Unauthorized, errorJson)
+        } else {
+          complete(StatusCodes.BadRequest, errorJson)
+        }
       }
     }
   }

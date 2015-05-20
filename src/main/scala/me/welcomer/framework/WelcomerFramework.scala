@@ -10,9 +10,11 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework
+
+import scala.concurrent.duration._
 
 import akka.actor.Actor
 import akka.actor.ActorLogging
@@ -20,6 +22,7 @@ import akka.actor.ActorRef
 import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.actor.Terminated
+
 import me.welcomer.framework.actors.WelcomerFrameworkOverlord
 
 object WelcomerFramework {
@@ -39,6 +42,7 @@ object WelcomerFramework {
 
     sys.addShutdownHook {
       system.shutdown // Shut down our ActorSystem
+      system.awaitTermination(5.seconds) // TODO: Move this timeout to config? Need to properly test safe shutdown procedure before we make this longer else it seems to just hang
     }
   }
 
@@ -63,7 +67,7 @@ object WelcomerFramework {
     def receive = {
       case Terminated(_) => {
         log.info("{} has terminated, shutting down system", ref.path)
-        system.shutdown()
+        system.shutdown
       }
     }
   }

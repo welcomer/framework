@@ -10,12 +10,12 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.rulesets
 
 import me.welcomer.framework.pico.EventedEvent
-import me.welcomer.framework.utils.JsonUtils
+import me.welcomer.utils.JsonUtils
 import play.api.libs.json.JsObject
 import play.api.libs.json.Json
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
@@ -115,7 +115,7 @@ trait PdsResponseMock extends AnyRef with PdsTestHelpers {
   def storeItemMock(suppliedAttributes: JsObject = Json.obj()): EventedEvent = {
     checkPdsTestForceError(suppliedAttributes) match {
       case Some(errorMsg) => storeItemFailureMock(errorMsg, suppliedAttributes)
-      case None => storeItemSuccessMock(suppliedAttributes)
+      case None           => storeItemSuccessMock(suppliedAttributes)
     }
   }
 
@@ -149,7 +149,7 @@ trait PdsResponseMock extends AnyRef with PdsTestHelpers {
   def storeAllItemsMock(suppliedAttributes: JsObject = Json.obj()): EventedEvent = {
     checkPdsTestForceError(suppliedAttributes) match {
       case Some(errorMsg) => storeAllItemsFailureMock(errorMsg, suppliedAttributes)
-      case None => storeAllItemsSuccessMock(suppliedAttributes)
+      case None           => storeAllItemsSuccessMock(suppliedAttributes)
     }
   }
 
@@ -184,7 +184,7 @@ trait PdsResponseMock extends AnyRef with PdsTestHelpers {
   def retrieveItemMock(mockData: (String, String), suppliedAttributes: JsObject = Json.obj()): EventedEvent = {
     checkPdsTestForceError(suppliedAttributes) match {
       case Some(errorMsg) => retrieveItemFailureMock(errorMsg, suppliedAttributes)
-      case None => retrieveItemSuccessMock(mockData, suppliedAttributes)
+      case None           => retrieveItemSuccessMock(mockData, suppliedAttributes)
     }
   }
 
@@ -221,7 +221,7 @@ trait PdsResponseMock extends AnyRef with PdsTestHelpers {
   def retrieveAllItemsMock(mockData: JsObject, suppliedAttributes: JsObject = Json.obj()): EventedEvent = {
     checkPdsTestForceError(suppliedAttributes) match {
       case Some(errorMsg) => retrieveAllItemsFailureMock(errorMsg, suppliedAttributes)
-      case None => retrieveAllItemsSuccessMock(mockData, suppliedAttributes)
+      case None           => retrieveAllItemsSuccessMock(mockData, suppliedAttributes)
     }
   }
 
@@ -257,7 +257,7 @@ trait PdsResponseMock extends AnyRef with PdsTestHelpers {
   def removeItemMock(suppliedAttributes: JsObject = Json.obj()): EventedEvent = {
     checkPdsTestForceError(suppliedAttributes) match {
       case Some(errorMsg) => removeItemFailureMock(errorMsg, suppliedAttributes)
-      case None => removeItemSuccessMock(suppliedAttributes)
+      case None           => removeItemSuccessMock(suppliedAttributes)
     }
   }
 

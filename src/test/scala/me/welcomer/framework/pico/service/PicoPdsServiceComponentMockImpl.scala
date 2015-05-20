@@ -25,7 +25,8 @@ trait PicoPdsServiceComponentMockImpl extends PicoPdsServiceComponent { self: Pi
     override def storeItemWithJsValue(
       key: String,
       item: JsValue,
-      namespace: Option[String] = None)(implicit ec: ExecutionContext): Future[JsObject] = {
+      namespace: Option[String] = None,
+      selector: Option[JsObject] = None)(implicit ec: ExecutionContext): Future[JsObject] = {
       ???
     }
 
@@ -63,7 +64,7 @@ trait PicoPdsServiceComponentMockImpl extends PicoPdsServiceComponent { self: Pi
       ???
     }
 
-    override def retrieveAllNamespaces(implicit ec: ExecutionContext): Future[Option[JsObject]] = {
+    override def retrieveAllNamespaces(filter: Option[List[String]] = None)(implicit ec: ExecutionContext): Future[Option[JsObject]] = {
       ???
     }
 

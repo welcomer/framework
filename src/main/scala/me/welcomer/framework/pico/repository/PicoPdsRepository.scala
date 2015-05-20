@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.pico.repository
 import scala.concurrent.ExecutionContext
@@ -20,7 +20,7 @@ import me.welcomer.framework.models.PicoSchema
 import me.welcomer.framework.utils.DBImplicits
 import me.welcomer.framework.utils.GenericJsonRepository
 import me.welcomer.framework.utils.GenericRepositoryReactiveMongoJsonImpl
-import me.welcomer.framework.utils.JsonUtils
+import me.welcomer.utils.JsonUtils
 import play.api.libs.json.JsObject
 import play.api.libs.json.JsValue
 import play.api.libs.json.Json
@@ -55,7 +55,8 @@ private[welcomer] trait PicoPdsRepositoryComponent {
       namespaceOption: Option[String],
       keyOption: Option[String] = None,
       value: T,
-      ignoreNamespace: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String, writeT: Writes[T]): Future[JsObject]
+      ignoreNamespace: Boolean = false,
+      selector: Option[JsObject] = None)(implicit ec: ExecutionContext, picoUUID: String, writeT: Writes[T]): Future[JsObject]
 
     def mergeScoped(
       namespaceOption: Option[String],
@@ -66,6 +67,13 @@ private[welcomer] trait PicoPdsRepositoryComponent {
     def pushScopedArrayItem(
       arrayKey: String,
       item: JsValue,
+      namespaceOpt: Option[String],
+      selector: Option[JsObject] = None,
+      unique: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String): Future[JsObject]
+
+    def pushScopedArrayItems(
+      arrayKey: String,
+      items: Seq[JsValue],
       namespaceOpt: Option[String],
       selector: Option[JsObject] = None,
       unique: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String): Future[JsObject]
@@ -101,8 +109,8 @@ private[framework] trait PicoPdsRepositoryComponentReactiveMongoImpl extends Pic
     private def buildNamespacePath(namespaceOption: Option[String], ignoreNamespace: Boolean = false): String = {
       namespaceOption match {
         case _ if ignoreNamespace => namespacesKey
-        case Some(namespace) => s"$namespacesKey.$namespace"
-        case None => s"$namespacesKey.$defaultNamespaceKey"
+        case Some(namespace)      => s"$namespacesKey.$namespace"
+        case None                 => s"$namespacesKey.$defaultNamespaceKey"
       }
     }
 
@@ -113,7 +121,7 @@ private[framework] trait PicoPdsRepositoryComponentReactiveMongoImpl extends Pic
     }
 
     // TODO: Deprecate/remove this in favour of findScoped?
-    @deprecated("Remove this in favour of findScoped?")
+    @deprecated("Remove this in favour of findScoped?", "0.0.1")
     override def findScopedDocument(namespaceOption: Option[String], filter: Option[List[String]] = None, ignoreNamespace: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String): Future[Option[JsObject]] = {
       // Useful when we switch to JSON? https://www.playframework.com/documentation/2.3.x/ScalaJsonTransformers
       val namespacePath = buildNamespacePath(namespaceOption, ignoreNamespace)
@@ -152,12 +160,14 @@ private[framework] trait PicoPdsRepositoryComponentReactiveMongoImpl extends Pic
       namespaceOption: Option[String],
       keyOption: Option[String] = None,
       value: T,
-      ignoreNamespace: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String, writeT: Writes[T]): Future[JsObject] = {
+      ignoreNamespace: Boolean = false,
+      selector: Option[JsObject] = None)(implicit ec: ExecutionContext, picoUUID: String, writeT: Writes[T]): Future[JsObject] = {
       val namespacePath = buildNamespacePath(namespaceOption, ignoreNamespace)
+      val scopedSelector = scopeAllKeys(namespacePath, selector.getOrElse(Json.obj()))
       val fullKeyPath = buildNamespacedKeyPath(namespacePath, keyOption)
 
       setKeyValue(
-        buildPicoScope(picoUUID),
+        buildPicoScope(picoUUID) ++ scopedSelector,
         fullKeyPath -> value,
         upsert = true)
     }
@@ -193,6 +203,24 @@ private[framework] trait PicoPdsRepositoryComponentReactiveMongoImpl extends Pic
         buildPicoScope(picoUUID) ++ scopedSelector,
         scopedArrayKey,
         item,
+        unique,
+        upsert = true)
+    }
+
+    override def pushScopedArrayItems(
+      arrayKey: String,
+      items: Seq[JsValue],
+      namespaceOpt: Option[String],
+      selector: Option[JsObject] = None,
+      unique: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String): Future[JsObject] = {
+      val namespacePath = buildNamespacePath(namespaceOpt, false)
+      val scopedSelector = scopeAllKeys(namespacePath, selector.getOrElse(Json.obj()))
+      val scopedArrayKey = buildNamespacedKeyPath(namespacePath, Some(arrayKey))
+
+      pushArrayItems(
+        buildPicoScope(picoUUID) ++ scopedSelector,
+        scopedArrayKey,
+        items,
         unique,
         upsert = true)
     }

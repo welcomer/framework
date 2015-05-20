@@ -10,7 +10,7 @@
  *  distributed under the License is distributed on an "AS IS" BASIS,
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
- *  limitations under the License. 
+ *  limitations under the License.
  */
 package me.welcomer.framework.pico.repository
 
@@ -48,7 +48,8 @@ trait PicoPdsRepositoryComponentMockImpl extends PicoPdsRepositoryComponent {
       namespaceOption: Option[String],
       keyOption: Option[String] = None,
       value: T,
-      ignoreNamespace: Boolean = false)(implicit ec: ExecutionContext, picoUUID: String, writeT: Writes[T]): Future[JsObject] = {
+      ignoreNamespace: Boolean = false,
+      selector: Option[JsObject] = None)(implicit ec: ExecutionContext, picoUUID: String, writeT: Writes[T]): Future[JsObject] = {
       ???
     }
 

@@ -16,38 +16,82 @@ package me.welcomer.framework.pico.ruleset.patterns
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.util.Failure
+import scala.util.Success
 import scala.util.control.NonFatal
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.json.Json.toJsFieldJsValueWrapper
 import me.welcomer.framework.pico.EventedEvent
-import me.welcomer.framework.pico.PicoRuleset
-import me.welcomer.framework.utils.Jsonable
-import me.welcomer.framework.utils.Jsonable.jsonableToJsObject
-import me.welcomer.framework.pico.EventedMessage
+import me.welcomer.framework.pico.EventedFailure
 import me.welcomer.framework.pico.EventedFunction
+import me.welcomer.framework.pico.EventedMessage
+import me.welcomer.framework.pico.EventedResult
+import me.welcomer.framework.pico.PicoRuleset
+import me.welcomer.framework.pico.UnhandledFunction
+import me.welcomer.utils.Jsonable
+import me.welcomer.utils.Jsonable.jsonableToJsObject
+import scalaz.Scalaz
+import scalaz.OptionT
+import Scalaz.futureInstance
 
 object ChannelMapping {
   case class ChannelDetails(channelType: String, channelId: String) extends Jsonable
+
+  object EciType extends Enumeration {
+    type EciType = Value
+    val PicoEci = Value("picoEci")
+    val ReplyToEci = Value("replyToEci")
+  }
+
+  val MAPPING_NAMESPACE = "channelMappings"
 
   // TODO: Should we make 'type' an enum/objects?
   implicit lazy val channelDetailsFormat: Format[ChannelDetails] = (
     (__ \ "type").format[String] ~
     (__ \ "id").format[String])(ChannelDetails.apply, unlift(ChannelDetails.unapply))
 
-  case class PicoMapping(picoEci: String, replyToEci: String, channels: Set[ChannelDetails]) extends Jsonable
+  case class PicoMapping(picoEci: String, replyToEci: String, channels: Set[ChannelDetails]) extends Jsonable {
+    def channelIdsForType(channelType: String): Set[String] = {
+      for {
+        channel <- channels
+        if channel.channelType == channelType
+      } yield { channel.channelId }
+    }
+  }
 
   implicit lazy val picoMappingFormat: Format[PicoMapping] = (
     (__ \ "picoEci").format[String] ~
     (__ \ "replyToEci").format[String] ~
     (__ \ "channels").format[Set[ChannelDetails]])(PicoMapping.apply, unlift(PicoMapping.unapply))
+
+  implicit class OptionTFutureWithFilter[A](val self: OptionT[Future, A]) extends AnyVal {
+    def withFilter(f: A => Boolean)(implicit F: scalaz.Functor[Future]): OptionT[Future, A] = self.filter(f)
+  }
 }
 
 trait ChannelMapping { this: PicoRuleset =>
   import ChannelMapping._
+  import ChannelMapping.EciType._
   import context._
 
-  val MAPPING_NAMESPACE = "channelMappings"
+  /**
+   * Retrieve PicoMapping if exists for channel, otherwise create and map new pico.
+   *
+   * @param channelDetails The channel to map.
+   * @param rulesets The rulesets to be installed on the new pico.
+   *
+   * @return The PicoMapping and true if the pico was found, otherwise false
+   */
+  def retrieveOrMapNewPico(
+    channelDetails: ChannelDetails,
+    rulesets: Set[String])(implicit ec: ExecutionContext): Future[(PicoMapping, Boolean)] = {
+
+    retrieveMapping(channelDetails) flatMap {
+      case Some(picoMapping) => Future(picoMapping, true)
+      case None              => mapNewPico(channelDetails, rulesets) map { (_, false) }
+    }
+  }
 
   /**
    * Create a new pico and map it to the supplied channel.
@@ -57,7 +101,7 @@ trait ChannelMapping { this: PicoRuleset =>
    */
   def mapNewPico(
     channelDetails: ChannelDetails,
-    rulesets: Set[String])(implicit ec: ExecutionContext): Future[(String, String, JsObject)] = {
+    rulesets: Set[String])(implicit ec: ExecutionContext): Future[PicoMapping] = {
     def channelType = channelDetails.channelType
     def channelId = channelDetails.channelId
 
@@ -66,14 +110,41 @@ trait ChannelMapping { this: PicoRuleset =>
     for {
       newPicoEci <- _picoServices.picoManagement.createNewPico(rulesets)
       myReplyToEci <- _picoServices.eci.generate(Some(eciDescription))
-      storeResult <- storeMapping(PicoMapping(newPicoEci, myReplyToEci, Set(channelDetails)))
-    } yield { (newPicoEci, myReplyToEci, storeResult) }
+      picoMapping = PicoMapping(newPicoEci, myReplyToEci, Set(channelDetails))
+      storeResult <- storeMapping(picoMapping)
+      //      if storeResult // TODO: Make sure it saved correctly
+    } yield { picoMapping }
+  }
+
+  /**
+   * Retrieve mapping using a custom selector.
+   *
+   * @param selector Custom selector
+   *
+   * @return The PicoMapping if found.
+   */
+  def retrieveMapping(selector: JsObject)(implicit ec: ExecutionContext): Future[Option[PicoMapping]] = {
+    val projection = Json.obj("mappings.channels.$" -> 1)
+
+    val result = _picoServices.pds.retrieve(selector, projection, Some(MAPPING_NAMESPACE)) map {
+      case Some(json) => (json \ "mappings")(0).asOpt[PicoMapping]
+      case None       => None
+    }
+
+    result.onComplete {
+      case Success(result) => log.debug("[ChannelMapping::retrieveMapping] selector={}, result={}", selector, result)
+      case Failure(e)      => log.error(e, "[ChannelMapping::retrieveMapping] Error: {}", e)
+    }
+
+    result
   }
 
   /**
    * Retrieve mapping for the supplied channel.
    *
    * @param channelDetails The channel to lookup mapping for.
+   *
+   * @return The PicoMapping if found.
    */
   def retrieveMapping(channelDetails: ChannelDetails)(implicit ec: ExecutionContext): Future[Option[PicoMapping]] = {
     val selector = Json.obj(
@@ -81,11 +152,59 @@ trait ChannelMapping { this: PicoRuleset =>
         "$elemMatch" -> Json.obj(
           "type" -> channelDetails.channelType,
           "id" -> channelDetails.channelId)))
-    val projection = Json.obj("mappings.channels.$" -> 1)
 
-    _picoServices.pds.retrieve(selector, projection, Some(MAPPING_NAMESPACE)) map {
-      case Some(json) => (json \ "mappings")(0).asOpt[PicoMapping]
-      case None       => None
+    retrieveMapping(selector)
+  }
+
+  /**
+   * Retrieve mapping by eci.
+   *
+   * @param eci The eci to lookup.
+   * @param eciType The eci type to lookup.
+   *
+   * @return The PicoMapping if found.
+   */
+  def retrieveMapping(eci: String, eciType: EciType)(implicit ec: ExecutionContext): Future[Option[PicoMapping]] = {
+    val selector = Json.obj(
+      "mappings" -> Json.obj(
+        "$elemMatch" -> Json.obj(
+          eciType.toString -> eci)))
+
+    retrieveMapping(selector)
+  }
+
+  /**
+   * Check whether the supplied eci matches a mapped eci.
+   *
+   * @param eciOpt The eci to check
+   * @param eciType The eci type to check
+   *
+   * @return the PicoMapping if eci was found
+   */
+  def checkMappedEci(eciOpt: Option[String], eciType: EciType = ReplyToEci)(implicit ec: ExecutionContext): Future[Option[PicoMapping]] = {
+    (for {
+      eci <- OptionT(Future(eciOpt))
+      mapping <- OptionT(retrieveMapping(eci, eciType))
+      foundEci = eciType match {
+        case ReplyToEci => mapping.replyToEci
+        case PicoEci    => mapping.picoEci
+      }
+      if eci == foundEci // This causes a compiler warning without OptionTFutureWithFilter, see https://github.com/scalaz/scalaz/pull/922#issuecomment-100045248
+    } yield { mapping }).run
+  }
+
+  /**
+   * Validate that the supplied eci matches a mapped eci and execute the successHandler, or return 'UnhandledFunction'.
+   *
+   * @param f EventedFunction the function to be processed.
+   * @param eciType The eci type to check.
+   * @param successHandler The success function to execute.
+   */
+  def validateMappedEci(f: EventedFunction, eciType: EciType = ReplyToEci)(
+    successHandler: (EventedFunction, PicoMapping) => Future[Option[EventedResult[_]]])(implicit ec: ExecutionContext): Future[Option[EventedResult[_]]] = {
+    checkMappedEci(f.module.eci) flatMap {
+      case Some(mapping) => successHandler(f, mapping)
+      case None          => Future(Some(EventedFailure(UnhandledFunction)))
     }
   }
 
@@ -132,7 +251,7 @@ trait ChannelMapping { this: PicoRuleset =>
    * @param validChannelHandler Function called when mapping found.
    * @param invalidChannelHandler Function called when mapping not found.
    */
-  def forChannel(channelDetails: ChannelDetails)(validChannelHandler: PicoMapping => Unit)(invalidChannelHandler: => Unit)(implicit ec: ExecutionContext): Unit = {
+  def forChannel(channelDetails: ChannelDetails)(validChannelHandler: PicoMapping => Unit)(invalidChannelHandler: EventedFailure => Unit)(implicit ec: ExecutionContext): Unit = {
     retrieveMapping(channelDetails) map {
       case Some(mapping) => {
         log.debug("[forChannel] ValidChannel: " + channelDetails)
@@ -140,10 +259,16 @@ trait ChannelMapping { this: PicoRuleset =>
       }
       case None => {
         log.debug("[forChannel] InvalidChannel: " + channelDetails)
-        invalidChannelHandler
+
+        invalidChannelHandler(
+          EventedFailure(
+            Json.obj(
+              "type" -> "error",
+              "desc" -> "InvalidChannel",
+              "channel" -> channelDetails)))
       }
     } recover {
-      case NonFatal(e) => log.error(e, "[forChannel] Error: " + e.getMessage())
+      case NonFatal(e) => log.error(e, "[forChannel] Error: {}", e.getMessage())
     }
   }
 
@@ -157,11 +282,35 @@ trait ChannelMapping { this: PicoRuleset =>
   def raiseRemoteEventedForChannel(
     channelDetails: ChannelDetails,
     successEvent: PicoMapping => Future[Option[EventedMessage]],
-    failureEvent: => Future[Option[EventedEvent]])(implicit ec: ExecutionContext): Unit = {
+    failureHandler: EventedFailure => Unit)(implicit ec: ExecutionContext): Unit = {
     def success(m: PicoMapping) = successEvent(m) map { _ map { raiseRemoteEvent(_) } }
-    def failure = failureEvent map { _ map { raiseRemoteEvent(_) } }
 
-    forChannel(channelDetails)(success)(failure)
+    forChannel(channelDetails)(success)(failureHandler)
+  }
+
+  /**
+   * Raise remote EventedFunction based on channel mapping lookup.
+   *
+   * @param channelDetails The channel to lookup mapping for.
+   * @param func The EventedFunction to raise (eci will be set to ChannelMapping.picoEci)
+   */
+  def raiseRemoteEventedFunctionForChannel(channelDetails: ChannelDetails)(func: EventedFunction)(implicit ec: ExecutionContext): Future[EventedResult[_]] = {
+    retrieveMapping(channelDetails) flatMap {
+      case Some(mapping) => raiseRemoteEventWithReplyTo(func.withModuleEci(mapping.picoEci))
+      case None => {
+        Future(
+          EventedFailure(
+            Json.obj(
+              "type" -> "error",
+              "desc" -> "InvalidChannel",
+              "channel" -> channelDetails)))
+      }
+    } recover {
+      case NonFatal(e) => {
+        log.error(e, "[raiseRemoteEventedFunctionForChannel] Error: {}", e.getMessage())
+        EventedFailure(e)
+      }
+    }
   }
 
   /**
@@ -174,7 +323,7 @@ trait ChannelMapping { this: PicoRuleset =>
   def forwardEventedForChannel(
     evented: EventedMessage,
     channelDetailsPath: JsPath = (__ \ "channelDetails"),
-    failureEvent: => Future[Option[EventedEvent]] = Future(None)): Unit = {
+    failureHandler: EventedMessage => EventedFailure => Unit = defaultFailureHandler): Unit = {
     val dropChannelDetails = channelDetailsPath.json.prune
     val pickChannelDetails = channelDetailsPath.json.pick
 
@@ -196,8 +345,24 @@ trait ChannelMapping { this: PicoRuleset =>
     log.debug("[forwardEventedForChannel] Actual event: {}", evented)
 
     val channelResult = json.transform(pickChannelDetails) map { _.as[ChannelDetails] }
-    channelResult map { channelDetails =>
-      raiseRemoteEventedForChannel(channelDetails, successHandler, failureEvent)
-    } getOrElse { log.error("No ChannelDetails found, should raise error") /* TODO: Handle 'missing channelDetails attrs' error */ }
+    channelResult match {
+      case JsSuccess(channelDetails, _) => raiseRemoteEventedForChannel(channelDetails, successHandler, failureHandler(evented))
+      case JsError(errors) => {
+        log.error("No ChannelDetails found ({})", evented)
+
+        failureHandler(evented)(EventedFailure(Json.obj("type" -> "error", "desc" -> "No ChannelDetails found")))
+      }
+    }
+  }
+
+  private def defaultFailureHandler(evented: EventedMessage): EventedFailure => Unit = {
+    def fail(failure: EventedFailure): Unit = {
+      evented match {
+        case func: EventedFunction => func.replyTo map { _ ! failure }
+        case _                     => Unit // TODO: Handle EventedEvents better when we get directives?
+      }
+    }
+
+    fail
   }
 }

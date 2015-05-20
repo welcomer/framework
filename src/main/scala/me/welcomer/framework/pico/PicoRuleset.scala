@@ -16,12 +16,17 @@ package me.welcomer.framework.pico
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.util.Failure
+import scala.util.Success
+import scala.util.Try
+import scala.util.control.NonFatal
 
 import akka.actor.Props
 
 import play.api.libs.json.JsError
 
 import me.welcomer.framework.actors.WelcomerFrameworkActor
+import me.welcomer.framework.pico.dsl.PicoRulesetDSL
 import me.welcomer.framework.pico.service.PicoServicesComponent
 
 private[framework] object PicoRuleset {
@@ -121,7 +126,14 @@ abstract class PicoRuleset(picoServices: PicoServicesComponent#PicoServices) ext
       case _ if provideFunction.isDefinedAt(func) => {
         log.debug("[handleFunction] Calling: {}", func)
 
-        provideFunction(func)
+        Try {
+          provideFunction(func) recover {
+            case NonFatal(e) => Some(EventedFailure(e))
+          }
+        } match {
+          case Success(s) => s
+          case Failure(e) => Future(Some(EventedFailure(e)))
+        }
       }
       case _ => {
         log.debug("[handleFunction] Unhandled function requested: {}", func)
