@@ -6,8 +6,15 @@ lazy val sprayVersion = settingKey[String]("The version of Spray used for buildi
 
 lazy val playJsonVersion = settingKey[String]("The version of Play Json used for building.")
 
+// https://github.com/softprops/bintray-sbt (publish / bintrayUnpublish)
+lazy val bintrayPublishSettings = Seq(
+  bintrayOrganization := Some("welcomer"),
+  licenses += ("Apache-2.0", url("http://choosealicense.com/licenses/apache-2.0/")),
+  bintrayReleaseOnPublish in ThisBuild := true
+)
+
 lazy val commonSettings = Seq(
-  version := "0.1.4",
+  version := "0.1.4.1",
   scalaVersion := "2.10.5",
   organization := "me.welcomer",
   scalacOptions := Seq("-feature", "-unchecked", "-deprecation", "-encoding", "utf8"),
@@ -29,19 +36,23 @@ lazy val commonSettings = Seq(
 )
 
 lazy val root = (project in file("."))
+  .settings(bintrayPublishSettings: _*)
   .settings(commonSettings: _*)
   .aggregate(welcomerUtils, welcomerLink, welcomerSignpost)
   .dependsOn(welcomerUtils, welcomerLink)
 
 lazy val welcomerUtils = project.in(file("welcomer-utils"))
+  .settings(bintrayPublishSettings: _*)
   .settings(commonSettings: _*)
 
 lazy val welcomerLink = project.in(file("welcomer-link"))
+  .settings(bintrayPublishSettings: _*)
   .settings(commonSettings: _*)
   .aggregate(welcomerUtils, welcomerSignpost)
   .dependsOn(welcomerUtils, welcomerSignpost)
 
 lazy val welcomerSignpost = project.in(file("welcomer-signpost"))
+  .settings(bintrayPublishSettings: _*)
   .settings(commonSettings: _*)
 
 // TODO: Look into adding this? https://github.com/spray/sbt-revolver

@@ -1,5 +1,7 @@
 # Changes
 
+* 2015-05-20 v0.1.4.1
+  * Releases now available on Bintray! (from this release onwards)
 * 2015-05-20 v0.1.4
   * **BREAKING CHANGES:**
     * There are SO many changes in this release, and since we are still in the early 0.x releases the API is *definitely* not stable yet. There are bound to be breaking changes in this release. Sorry :(

@@ -1,6 +1,6 @@
 name := "welcomer-signpost"
 
-version := "0.1.0-SNAPSHOT"
+version := "0.1.0"
 
 lazy val akkaVersion = settingKey[String]("The version of Akka used for building.")
 
