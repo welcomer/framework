@@ -42,6 +42,18 @@ Our approach was to utilise open standards along with concepts from [Phil Windle
 
 ## Getting Started
 
+### Using SBT
+
+```
+resolvers += "Welcomer Maven Bintray" at "https://dl.bintray.com/welcomer/maven/"
+
+libraryDependencies ++= Seq(
+  "me.welcomer" %% "welcomer-framework" % "0.1.4.1"
+)
+```
+
+### Clone this repo
+
 * Download/install mongodb (https://www.mongodb.org/downloads)
 * Download/install typesafe activator (https://typesafe.com/get-started)
 * Clone this repository `git clone https://github.com/welcomer/framework.git welcomerFramework`
