@@ -14,7 +14,7 @@ lazy val bintrayPublishSettings = Seq(
 )
 
 lazy val commonSettings = Seq(
-  version := "0.1.4.1",
+  version := "0.1.5-SNAPSHOT",
   scalaVersion := "2.10.5",
   organization := "me.welcomer",
   scalacOptions := Seq("-feature", "-unchecked", "-deprecation", "-encoding", "utf8"),
