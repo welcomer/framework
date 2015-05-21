@@ -14,7 +14,7 @@ lazy val bintrayPublishSettings = Seq(
 )
 
 lazy val commonSettings = Seq(
-  version := "0.1.4.3",
+  version := "0.1.5-SNAPSHOT",
   scalaVersion := "2.10.5",
   organization := "me.welcomer",
   excludeFilter in unmanagedResources := HiddenFileFilter || "*secure*.conf" || "*application*.conf",
