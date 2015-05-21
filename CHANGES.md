@@ -1,5 +1,7 @@
 # Changes
 
+* 2015-05-21 v0.1.4.2
+  * Cleanup some unused dependencies causing issues
 * 2015-05-20 v0.1.4.1
   * Releases now available on Bintray! (from this release onwards)
 * 2015-05-20 v0.1.4

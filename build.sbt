@@ -14,7 +14,7 @@ lazy val bintrayPublishSettings = Seq(
 )
 
 lazy val commonSettings = Seq(
-  version := "0.1.5-SNAPSHOT",
+  version := "0.1.4.2",
   scalaVersion := "2.10.5",
   organization := "me.welcomer",
   scalacOptions := Seq("-feature", "-unchecked", "-deprecation", "-encoding", "utf8"),
@@ -29,9 +29,9 @@ lazy val commonSettings = Seq(
     "Typesafe Maven Repository" at "http://repo.typesafe.com/typesafe/maven-releases/",
     //"spray repo" at "http://repo.spray.io",
     //"Kamon Repository" at "http://repo.kamon.io",
-    "Sonatype OSS Releases"  at "http://oss.sonatype.org/content/repositories/releases/",
+    "Sonatype OSS Releases"  at "http://oss.sonatype.org/content/repositories/releases/"
     //"Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
-    "Mandubian Maven Bintray" at "http://dl.bintray.com/mandubian/maven"
+    //"Mandubian Maven Bintray" at "http://dl.bintray.com/mandubian/maven"
   )
 )
 
@@ -69,9 +69,9 @@ libraryDependencies ++= Seq(
   "io.spray"               %%  "spray-testkit"       % sprayVersion.value  % "test",
   "org.reactivemongo"      %%  "play2-reactivemongo" % "0.10.5.0.akka23", // Gives us JsValue support instead of BSON
   "com.typesafe.play"      %%  "play-json"           % playJsonVersion.value,
-  "com.mandubian"          %% "play-json-zipper"     % "1.2",
+  //"com.mandubian"          %% "play-json-zipper"     % "1.2",
   "ch.qos.logback"         %   "logback-classic"     % "1.1.+",
-  "com.casualmiracles"     %%  "treelog"             % "1.2.2",
+  //"com.casualmiracles"     %%  "treelog"             % "1.2.2", // We want 1.2.4+ for scalaz 7.1.x but it's only compiled for Scala 2.11.x
   "org.scalaz"             %%  "scalaz-core"         % "7.1.+",
   //"kamon"                  %%  "kamon-spray"         % "0.3.5",
   "org.scalatest"          %%  "scalatest"           % "2.1.6" % "test" // Included by scalamock

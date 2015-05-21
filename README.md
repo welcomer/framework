@@ -48,7 +48,7 @@ Our approach was to utilise open standards along with concepts from [Phil Windle
 resolvers += "Welcomer Maven Bintray" at "https://dl.bintray.com/welcomer/maven/"
 
 libraryDependencies ++= Seq(
-  "me.welcomer" %% "welcomer-framework" % "0.1.4.1"
+  "me.welcomer" %% "welcomer-framework" % "0.1.4.2"
 )
 ```
 
